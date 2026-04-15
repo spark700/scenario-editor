@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<title>Редактор сценарію</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html-docx-js/0.3.1/html-docx.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Courier New", Courier, monospace;
+    background: #2b2b2b;
+    color: #e8e8e8;
+  }
+
+  .editor-wrap {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 30px 20px 80px;
+    position: relative;
+  }
+  .editor {
+    width: 100%;
+    max-width: 800px;
+    min-height: calc(100vh - 60px);
+    background: #fdfdfb;
+    color: #1a1a1a;
+    padding: 60px 80px;
+    border-radius: 4px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    outline: none;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .floating-toolbar {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+    background: rgba(30, 30, 30, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    z-index: 100;
+    max-width: calc(100% - 40px);
+    justify-content: center;
+  }
+  .floating-toolbar button {
+    padding: 7px 12px;
+    border: 1px solid #555;
+    background: #3a3a3a;
+    color: #e8e8e8;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background .15s;
+    white-space: nowrap;
+  }
+  .floating-toolbar button:hover { background: #555; }
+  .floating-toolbar .active { background: #6b8e4e; border-color: #88b065; }
+
+  /* Окрема панель експорту зліва */
+  .export-panel {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    background: rgba(30, 30, 30, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    z-index: 100;
+  }
+  .export-panel button {
+    padding: 8px 14px;
+    border: 1px solid #5b82bc;
+    background: #4a6fa5;
+    color: #fff;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background .15s;
+    white-space: nowrap;
+  }
+  .export-panel button:hover { background: #5b82bc; }
+
+  /* Панель проектів — право зверху */
+  .projects-panel {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 100;
+    font-family: inherit;
+  }
+  .projects-toggle {
+    padding: 8px 14px;
+    border: 1px solid #555;
+    background: rgba(30,30,30,.92);
+    backdrop-filter: blur(8px);
+    color: #e8e8e8;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    min-width: 180px;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .projects-toggle:hover { background: rgba(50,50,50,.95); }
+  .projects-toggle::after { content: " ▾"; color: #888; }
+
+  /* Система view */
+  body[data-view="projects"] .floating-toolbar,
+  body[data-view="projects"] .editor-wrap,
+  body[data-view="projects"] .export-panel,
+  body[data-view="projects"] .projects-panel,
+  body[data-view="projects"] .format-hint,
+  body[data-view="projects"] #view-editor { display: none !important; }
+
+  body[data-view="editor"] #view-projects { display: none !important; }
+
+  /* Галерея проектів */
+  #view-projects {
+    min-height: 100vh;
+    padding: 40px 40px 80px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .gallery-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .gallery-header h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: normal;
+    color: #fff;
+  }
+  .gallery-header .count {
+    font-size: 14px;
+    color: #888;
+    margin-left: 10px;
+  }
+  .gallery-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .gallery-actions button {
+    padding: 10px 16px;
+    border: 1px solid #555;
+    background: #3a3a3a;
+    color: #e8e8e8;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .gallery-actions button:hover { background: #505050; }
+  .gallery-actions button.danger { background: #7a3030; border-color: #a04040; color: #fff; }
+  .gallery-actions button.danger:hover { background: #a04040; }
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+  }
+
+  .tile {
+    background: #fdfdfb;
+    color: #1a1a1a;
+    border-radius: 8px;
+    padding: 20px 22px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,0,0,.3);
+    transition: transform .15s, box-shadow .15s;
+    position: relative;
+    aspect-ratio: 3/4;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: "Courier New", Courier, monospace;
+  }
+  .tile:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+  .tile.active {
+    outline: 3px solid #88b065;
+    outline-offset: -3px;
+  }
+  .tile .tile-title {
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    word-break: break-word;
+  }
+  .tile .tile-meta {
+    font-size: 10px;
+    color: #888;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 8px;
+  }
+  .tile .tile-preview {
+    flex: 1;
+    font-size: 9px;
+    line-height: 1.4;
+    color: #555;
+    overflow: hidden;
+    position: relative;
+  }
+  .tile .tile-preview::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(transparent, #fdfdfb);
+    pointer-events: none;
+  }
+  .tile .tile-preview .scene-heading { font-weight: bold; text-transform: uppercase; margin: 4px 0; }
+  .tile .tile-preview .character { font-weight: bold; text-transform: uppercase; margin-left: 30%; }
+  .tile .tile-preview .dialogue { margin: 0 15% 0 10%; }
+  .tile .tile-preview .parenthetical { font-style: italic; margin-left: 20%; color: #888; }
+  .tile .tile-preview .action { margin: 3px 0; }
+
+  .tile-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  .tile:hover .tile-actions { opacity: 1; }
+  .tile-actions .ico {
+    background: rgba(0,0,0,.6);
+    color: #fff;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .tile-actions .ico:hover { background: rgba(0,0,0,.85); }
+  .tile-actions .ico.del:hover { background: #a04040; }
+
+  .tile-new {
+    background: rgba(255,255,255,.05);
+    color: #888;
+    border: 2px dashed #555;
+    box-shadow: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+  .tile-new:hover {
+    background: rgba(255,255,255,.08);
+    border-color: #88b065;
+    color: #88b065;
+    transform: translateY(-3px);
+  }
+  .tile-new .big-plus {
+    font-size: 48px;
+    margin-bottom: 8px;
+    font-weight: 300;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 80px 20px;
+    color: #666;
+  }
+  .empty-state h2 {
+    font-weight: normal;
+    margin: 0 0 12px;
+  }
+
+  /* Кастомні діалоги */
+  .dlg-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .dlg-backdrop.open { display: flex; }
+  .dlg {
+    background: #1f1f1f;
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.7);
+    width: 100%;
+    max-width: 440px;
+    font-family: inherit;
+    color: #e8e8e8;
+    overflow: hidden;
+  }
+  .dlg-body { padding: 20px 22px 16px; }
+  .dlg-title {
+    font-size: 15px;
+    margin: 0 0 12px;
+    color: #fff;
+  }
+  .dlg-message {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #c8c8c8;
+    white-space: pre-wrap;
+  }
+  .dlg-input {
+    width: 100%;
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+  }
+  .dlg-input:focus { border-color: #5b82bc; }
+  .dlg-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #181818;
+    border-top: 1px solid #333;
+  }
+  .dlg-btn {
+    padding: 8px 18px;
+    border: 1px solid #555;
+    background: #3a3a3a;
+    color: #e8e8e8;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 6px;
+    min-width: 80px;
+  }
+  .dlg-btn:hover { background: #505050; }
+  .dlg-btn.primary { background: #4a6fa5; border-color: #5b82bc; color: #fff; }
+  .dlg-btn.primary:hover { background: #5b82bc; }
+  .dlg-btn.danger { background: #7a3030; border-color: #a04040; color: #fff; }
+  .dlg-btn.danger:hover { background: #a04040; }
+
+  .format-hint {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 14px;
+    background: rgba(30,30,30,.92);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 20px;
+    font-size: 12px;
+    color: #bbb;
+    z-index: 100;
+    pointer-events: none;
+  }
+  .format-hint b { color: #88b065; }
+  .format-hint .tab { color: #e0b040; margin-left: 10px; }
+
+  .suggestions {
+    position: absolute;
+    background: #1f1f1f;
+    border: 1px solid #555;
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.5);
+    min-width: 200px;
+    max-width: 360px;
+    max-height: 280px;
+    overflow-y: auto;
+    z-index: 200;
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+  }
+  .suggestions .item {
+    padding: 7px 12px;
+    color: #e8e8e8;
+    cursor: pointer;
+    border-bottom: 1px solid #333;
+  }
+  .suggestions .item:last-child { border-bottom: none; }
+  .suggestions .item.selected { background: #4a6fa5; }
+  .suggestions .item .kind {
+    font-size: 10px;
+    color: #888;
+    margin-left: 8px;
+  }
+  .suggestions .item.selected .kind { color: #cde0f2; }
+
+  .editor div[data-type] { min-height: 1.6em; }
+  .editor .scene-heading { text-transform: uppercase; font-weight: bold; margin: 24px 0 12px; }
+  .editor .action { margin: 12px 0; }
+  .editor .character { text-transform: uppercase; font-weight: bold; margin: 20px 0 0 40%; }
+  .editor .dialogue { margin: 4px 20% 12px 20%; }
+  .editor .parenthetical { font-style: italic; margin: 2px 0 2px 30%; color: #444; }
+  .editor .transition { text-transform: uppercase; font-weight: bold; text-align: right; margin: 16px 0; color: #6b3a3a; }
+
+  .editor div[data-type]:empty::before,
+  .editor div[data-type]:has(br:only-child)::before {
+    content: attr(data-placeholder);
+    color: #bbb;
+    font-style: italic;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="view-projects">
+  <div class="gallery-header">
+    <h1>Мої сценарії<span class="count" id="projectsCount"></span></h1>
+    <div class="gallery-actions">
+      <button id="btnImport">📥 Імпорт</button>
+      <button id="btnExportAll">📤 Експорт усіх</button>
+      <button class="danger" id="btnDeleteAll">🗑 Видалити все</button>
+    </div>
+  </div>
+  <div class="tiles" id="tilesContainer"></div>
+</div>
+
+<div id="view-editor">
+  <div class="export-panel">
+    <button onclick="exportPDF()">💾 PDF</button>
+    <button onclick="exportDOCX()">💾 Word</button>
+  </div>
+
+  <div class="projects-panel">
+    <button class="projects-toggle" id="projectsToggle">Проект</button>
+  </div>
+</div>
+
+<input type="file" id="importFile" accept="application/json" style="display:none">
+
+<div class="dlg-backdrop" id="dlgBackdrop"><div class="dlg" id="dlgBox"></div></div>
+
+<div class="floating-toolbar" id="toolbar">
+  <button data-fmt="scene-heading" title="Місце та час (Ctrl+1)">МІСЦЕ/ЧАС</button>
+  <button data-fmt="action" title="Опис (Ctrl+2)">Опис</button>
+  <button data-fmt="character" title="Герой (Ctrl+3)">ГЕРОЙ</button>
+  <button data-fmt="dialogue" title="Репліка (Ctrl+4)">Репліка</button>
+  <button data-fmt="parenthetical" title="Ремарка (Ctrl+5)">(ремарка)</button>
+  <button data-fmt="transition" title="Перехід (Ctrl+6)">ПЕРЕХІД</button>
+</div>
+
+<div class="editor-wrap">
+  <div id="editor" class="editor" contenteditable="true" spellcheck="true"></div>
+</div>
+
+<div id="suggestions" class="suggestions" style="display:none"></div>
+
+<div class="format-hint">Формат: <b id="hint">—</b><span class="tab">Tab — автопідказка</span></div>
+
+<script>
+const editor = document.getElementById('editor');
+const hint = document.getElementById('hint');
+const toolbar = document.getElementById('toolbar');
+const suggBox = document.getElementById('suggestions');
+
+// --- Кастомні діалоги (prompt / confirm / alert) ---
+const dlgBackdrop = document.getElementById('dlgBackdrop');
+const dlgBox = document.getElementById('dlgBox');
+
+function showDialog({ title, message, input, inputValue, buttons }) {
+  return new Promise((resolve) => {
+    dlgBox.innerHTML = `
+      <div class="dlg-body">
+        ${title ? `<div class="dlg-title"></div>` : ''}
+        ${message ? `<div class="dlg-message"></div>` : ''}
+        ${input ? `<input type="text" class="dlg-input" />` : ''}
+      </div>
+      <div class="dlg-footer"></div>
+    `;
+    if (title) dlgBox.querySelector('.dlg-title').textContent = title;
+    if (message) dlgBox.querySelector('.dlg-message').textContent = message;
+    const footer = dlgBox.querySelector('.dlg-footer');
+    const inputEl = dlgBox.querySelector('.dlg-input');
+    if (inputEl) inputEl.value = inputValue || '';
+
+    const finish = (value) => {
+      dlgBackdrop.classList.remove('open');
+      document.removeEventListener('keydown', onKey);
+      resolve(value);
+    };
+
+    buttons.forEach((b) => {
+      const btn = document.createElement('button');
+      btn.className = 'dlg-btn' + (b.variant ? ' ' + b.variant : '');
+      btn.textContent = b.label;
+      btn.addEventListener('click', () => {
+        if (b.value === 'INPUT') finish(inputEl ? inputEl.value : '');
+        else finish(b.value);
+      });
+      footer.appendChild(btn);
+    });
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); finish(null); }
+      else if (e.key === 'Enter' && (!inputEl || document.activeElement === inputEl)) {
+        e.preventDefault();
+        const primary = buttons.find((b) => b.variant === 'primary') || buttons[buttons.length-1];
+        if (primary.value === 'INPUT') finish(inputEl ? inputEl.value : '');
+        else finish(primary.value);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    dlgBackdrop.classList.add('open');
+    if (inputEl) { inputEl.focus(); inputEl.select(); }
+    else footer.lastChild.focus();
+  });
+}
+
+function dlgAlert(message, title) {
+  return showDialog({ title: title || 'Повідомлення', message, buttons: [
+    { label: 'OK', value: true, variant: 'primary' },
+  ]});
+}
+
+async function dlgConfirm(message, { title, okLabel = 'OK', cancelLabel = 'Скасувати', danger = false } = {}) {
+  const res = await showDialog({ title: title || 'Підтвердження', message, buttons: [
+    { label: cancelLabel, value: false },
+    { label: okLabel, value: true, variant: danger ? 'danger' : 'primary' },
+  ]});
+  return res === true;
+}
+
+async function dlgPrompt(message, defaultValue = '', { title, okLabel = 'OK' } = {}) {
+  const res = await showDialog({ title: title || 'Введіть значення', message, input: true, inputValue: defaultValue, buttons: [
+    { label: 'Скасувати', value: null },
+    { label: okLabel, value: 'INPUT', variant: 'primary' },
+  ]});
+  return res;
+}
+
+async function dlgChoice(message, choices, { title } = {}) {
+  return showDialog({ title: title || 'Вибір', message, buttons: choices });
+}
+
+dlgBackdrop.addEventListener('click', (e) => {
+  if (e.target === dlgBackdrop) {
+    dlgBackdrop.classList.remove('open');
+  }
+});
+
+// --- Реальні звуки друкарської машинки ---
+let audioCtx = null;
+const KEY_BUFFERS = [];
+let DING_BUFFER = null;
+
+function ensureAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+async function loadSound(url) {
+  const ctx = ensureAudio();
+  if (!ctx) return null;
+  const res = await fetch(url);
+  const arr = await res.arrayBuffer();
+  return await ctx.decodeAudioData(arr);
+}
+
+async function preloadSounds() {
+  try {
+    const keys = await Promise.all(
+      [1,2,3,4,5,6,7,8].map(n => loadSound(`sounds/key${n}.mp3`).catch(() => null))
+    );
+    for (const b of keys) if (b) KEY_BUFFERS.push(b);
+    DING_BUFFER = await loadSound('sounds/ding.mp3').catch(() => null);
+  } catch (e) { console.warn('Sound preload failed', e); }
+}
+
+function playBuffer(buf, opts = {}) {
+  const ctx = ensureAudio();
+  if (!ctx || !buf) return;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.playbackRate.value = opts.rate ?? 1;
+  const gain = ctx.createGain();
+  gain.gain.value = opts.volume ?? 1;
+  src.connect(gain).connect(ctx.destination);
+  src.start();
+}
+
+function playKey() {
+  if (!KEY_BUFFERS.length) return;
+  const buf = KEY_BUFFERS[(Math.random() * KEY_BUFFERS.length) | 0];
+  playBuffer(buf, { rate: 0.95 + Math.random() * 0.1, volume: 0.8 });
+}
+
+function playReturn() {
+  playKey();
+  if (DING_BUFFER) playBuffer(DING_BUFFER, { volume: 0.5 });
+}
+
+// Тригер звуку на друк
+editor.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key;
+  if (k === 'Enter') playReturn();
+  else if (k === ' ' || k === 'Backspace' || k.length === 1) playKey();
+});
+
+// Попереднє завантаження (після першої взаємодії — для autoplay policy)
+let soundsLoaded = false;
+function initSoundsOnce() {
+  if (soundsLoaded) return;
+  soundsLoaded = true;
+  preloadSounds();
+}
+document.addEventListener('keydown', initSoundsOnce, { once: true });
+document.addEventListener('click', initSoundsOnce, { once: true });
+
+const PLACEHOLDERS = {
+  'scene-heading': 'ІНТ. МІСЦЕ — ЧАС (Tab для підказок)',
+  'action': 'Опис дії...',
+  'character': 'ІМ\'Я ГЕРОЯ (Tab — зі списку)',
+  'dialogue': 'Репліка героя...',
+  'parenthetical': '(ремарка)',
+  'transition': 'ПЕРЕХІД ДО:',
+};
+const LABELS = {
+  'scene-heading': 'МІСЦЕ/ЧАС', 'action': 'Опис', 'character': 'ГЕРОЙ',
+  'dialogue': 'Репліка', 'parenthetical': 'Ремарка', 'transition': 'Перехід',
+};
+const NEXT_AFTER = {
+  'scene-heading': 'action', 'action': 'action', 'character': 'dialogue',
+  'dialogue': 'action', 'parenthetical': 'dialogue', 'transition': 'scene-heading',
+};
+
+const SCENE_PREFIXES = [
+  { match: ['інт', 'ин', 'int', 'інтер', 'интер'], expand: 'ІНТ. ', label: 'ІНТ. (інтер\'єр)' },
+  { match: ['нат', 'nat', 'натура'], expand: 'НАТ. ', label: 'НАТ. (натура)' },
+  { match: ['екст', 'экст', 'ext', 'екстер'], expand: 'ЕКСТ. ', label: 'ЕКСТ. (екстер\'єр)' },
+  { match: ['інт/нат', 'int/ext'], expand: 'ІНТ./НАТ. ', label: 'ІНТ./НАТ.' },
+];
+const TIME_OF_DAY = ['ДЕНЬ', 'НІЧ', 'РАНОК', 'ВЕЧІР', 'СВІТАНОК', 'СУТІНКИ', 'ЗАХІД СОНЦЯ', 'ПІЗНІЙ ВЕЧІР', 'ПЕРЕДСВІТАННЯ'];
+const TRANSITIONS = ['ПЕРЕХІД ДО:', 'ЗАТЕМНЕННЯ.', 'ІЗ ЗАТЕМНЕННЯ:', 'МОНТАЖНИЙ ПЕРЕХІД:', 'РІЗКО ДО:', 'КІНЕЦЬ.', 'НАПЛИВ:'];
+const PARENTHETICALS = [
+  '(тихо)', '(голосно)', '(пошепки)', '(про себе)', '(сміється)',
+  '(пауза)', '(убік)', '(з досадою)', '(здивовано)', '(сердито)',
+  '(ніжно)', '(різко)', '(нервово)', '(холодно)',
+];
+
+// --- Проекти ---
+const PROJECTS_KEY = 'scenario_projects_v1';     // {id: {name, content, dict, updated}}
+const ACTIVE_KEY = 'scenario_active_project_v1';
+const LEGACY_CONTENT_KEY = 'scenario_editor_content_uk';
+const LEGACY_DICT_KEY = 'scenario_editor_dict_uk';
+
+function loadProjects() {
+  try { return JSON.parse(localStorage.getItem(PROJECTS_KEY) || '{}'); }
+  catch { return {}; }
+}
+function saveProjects(p) { localStorage.setItem(PROJECTS_KEY, JSON.stringify(p)); }
+
+let projects = loadProjects();
+let activeId = localStorage.getItem(ACTIVE_KEY);
+
+// Міграція зі старого формату
+if (Object.keys(projects).length === 0) {
+  const legacyContent = localStorage.getItem(LEGACY_CONTENT_KEY);
+  const legacyDict = localStorage.getItem(LEGACY_DICT_KEY);
+  const id = 'p_' + Date.now();
+  projects[id] = {
+    name: 'Без назви',
+    content: legacyContent || '',
+    dict: legacyDict ? JSON.parse(legacyDict) : { characters: {}, locations: {}, phrases: {} },
+    updated: Date.now(),
+  };
+  activeId = id;
+  saveProjects(projects);
+  localStorage.setItem(ACTIVE_KEY, activeId);
+}
+
+if (!activeId || !projects[activeId]) {
+  activeId = Object.keys(projects)[0];
+  localStorage.setItem(ACTIVE_KEY, activeId);
+}
+
+let dict = projects[activeId].dict || { characters: {}, locations: {}, phrases: {} };
+
+function learnDict() {
+  for (const b of editor.children) {
+    if (b.nodeType !== 1) continue;
+    const type = b.getAttribute('data-type');
+    const text = b.textContent.trim();
+    if (!text) continue;
+    if (type === 'character') {
+      dict.characters[text.toUpperCase()] = (dict.characters[text.toUpperCase()] || 0) + 1;
+    } else if (type === 'scene-heading') {
+      const m = text.match(/^(ІНТ\.|НАТ\.|ЕКСТ\.|ІНТ\.\/НАТ\.)\s*([^—–-]+)/i);
+      if (m) {
+        const loc = m[2].trim().toUpperCase();
+        if (loc) dict.locations[loc] = (dict.locations[loc] || 0) + 1;
+      }
+    }
+  }
+  projects[activeId].dict = dict;
+  saveProjects(projects);
+}
+
+const DEFAULT_CONTENT = `
+<div class="scene-heading" data-type="scene-heading" data-placeholder="ІНТ. МІСЦЕ — ЧАС">ІНТ. КВАРТИРА — ДЕНЬ</div>
+<div class="action" data-type="action" data-placeholder="Опис дії...">Герой сидить біля вікна й дивиться на дощ.</div>
+<div class="character" data-type="character" data-placeholder="ІМ'Я ГЕРОЯ">ГЕРОЙ</div>
+<div class="parenthetical" data-type="parenthetical" data-placeholder="(ремарка)">(тихо)</div>
+<div class="dialogue" data-type="dialogue" data-placeholder="Репліка героя...">Знову ллє...</div>
+`;
+
+editor.innerHTML = projects[activeId].content || DEFAULT_CONTENT;
+
+function ensureAttrs() {
+  for (const b of editor.children) {
+    if (b.nodeType !== 1) continue;
+    let type = b.getAttribute('data-type');
+    if (!type) {
+      type = [...b.classList].find(c => PLACEHOLDERS[c]) || 'action';
+      b.setAttribute('data-type', type);
+      b.className = type;
+    }
+    b.setAttribute('data-placeholder', PLACEHOLDERS[type] || '');
+  }
+}
+ensureAttrs();
+learnDict();
+
+function save() {
+  if (!projects[activeId]) return;
+  projects[activeId].content = editor.innerHTML;
+  projects[activeId].updated = Date.now();
+  saveProjects(projects);
+}
+
+// --- UI проектів ---
+const toggleBtn = document.getElementById('projectsToggle');
+const tilesEl = document.getElementById('tilesContainer');
+const countEl = document.getElementById('projectsCount');
+
+function setView(name) {
+  document.body.setAttribute('data-view', name);
+  if (name === 'projects') renderProjects();
+}
+
+function currentName() {
+  return projects[activeId]?.name || 'Без назви';
+}
+function updateToggleLabel() {
+  toggleBtn.textContent = '📄 ' + currentName();
+}
+
+function fmtDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return 'сьогодні ' + d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+  }
+  return d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function countBlocks(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return [...tmp.children].filter(c => c.textContent.trim()).length;
+}
+
+function buildPreview(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html || '';
+  const frag = document.createDocumentFragment();
+  let count = 0;
+  for (const c of tmp.children) {
+    if (count > 15) break;
+    if (!c.textContent.trim()) continue;
+    const d = document.createElement('div');
+    d.className = c.className || '';
+    d.textContent = c.textContent;
+    frag.appendChild(d);
+    count++;
+  }
+  return frag;
+}
+
+function renderProjects() {
+  tilesEl.innerHTML = '';
+  const entries = Object.entries(projects).sort((a,b) => (b[1].updated||0) - (a[1].updated||0));
+  countEl.textContent = ' (' + entries.length + ')';
+
+  // Tile "+ Новий"
+  const newTile = document.createElement('div');
+  newTile.className = 'tile tile-new';
+  newTile.innerHTML = `<div class="big-plus">+</div><div>Новий сценарій</div>`;
+  newTile.addEventListener('click', async () => {
+    const name = await dlgPrompt('Назва нового проекту:', 'Новий сценарій', { title: 'Новий сценарій', okLabel: 'Створити' });
+    if (name && name.trim()) {
+      createProject(name.trim());
+      setView('editor');
+    }
+  });
+  tilesEl.appendChild(newTile);
+
+  for (const [id, p] of entries) {
+    const tile = document.createElement('div');
+    tile.className = 'tile' + (id === activeId ? ' active' : '');
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'tile-title';
+    titleEl.textContent = p.name;
+
+    const metaEl = document.createElement('div');
+    metaEl.className = 'tile-meta';
+    const blocks = countBlocks(p.content || '');
+    metaEl.textContent = `${blocks} блоків · ${fmtDate(p.updated)}`;
+
+    const prev = document.createElement('div');
+    prev.className = 'tile-preview';
+    prev.appendChild(buildPreview(p.content));
+
+    const actions = document.createElement('div');
+    actions.className = 'tile-actions';
+    actions.innerHTML = `
+      <div class="ico rename" title="Перейменувати">✎</div>
+      <div class="ico dup" title="Дублювати">⧉</div>
+      <div class="ico del" title="Видалити">🗑</div>
+    `;
+
+    tile.appendChild(titleEl);
+    tile.appendChild(metaEl);
+    tile.appendChild(prev);
+    tile.appendChild(actions);
+
+    tile.addEventListener('click', (e) => {
+      if (e.target.closest('.tile-actions')) return;
+      switchProject(id);
+      setView('editor');
+    });
+
+    actions.querySelector('.rename').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const nn = await dlgPrompt('Нова назва проекту:', p.name, { title: 'Перейменувати' });
+      if (nn && nn.trim()) {
+        p.name = nn.trim();
+        saveProjects(projects);
+        renderProjects();
+        updateToggleLabel();
+      }
+    });
+
+    actions.querySelector('.dup').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const newId = 'p_' + Date.now();
+      projects[newId] = {
+        name: p.name + ' (копія)',
+        content: p.content,
+        dict: JSON.parse(JSON.stringify(p.dict || {characters:{},locations:{},phrases:{}})),
+        updated: Date.now(),
+      };
+      saveProjects(projects);
+      renderProjects();
+    });
+
+    actions.querySelector('.del').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const ok = await dlgConfirm(`Видалити проект «${p.name}»?\nЦю дію не можна скасувати.`, { title: 'Видалення', okLabel: 'Видалити', danger: true });
+      if (!ok) return;
+      delete projects[id];
+      saveProjects(projects);
+      if (id === activeId) {
+        activeId = null;
+        localStorage.removeItem(ACTIVE_KEY);
+        editor.innerHTML = '';
+        updateToggleLabel();
+      }
+      renderProjects();
+    });
+
+    tilesEl.appendChild(tile);
+  }
+}
+
+function switchProject(id) {
+  if (!projects[id]) return;
+  if (activeId && projects[activeId]) save();
+  activeId = id;
+  localStorage.setItem(ACTIVE_KEY, activeId);
+  dict = projects[activeId].dict || { characters: {}, locations: {}, phrases: {} };
+  editor.innerHTML = projects[activeId].content || DEFAULT_CONTENT;
+  ensureAttrs();
+  if (typeof hideSuggestions === 'function') hideSuggestions();
+  updateToggleLabel();
+  updateHint();
+}
+
+// --- Кнопки ---
+toggleBtn.addEventListener('click', () => {
+  save();
+  setView('projects');
+});
+
+document.getElementById('btnDeleteAll').addEventListener('click', async () => {
+  const ok1 = await dlgConfirm('Видалити ВСІ проекти без можливості відновлення?', { title: 'Видалити все', okLabel: 'Далі', danger: true });
+  if (!ok1) return;
+  const ok2 = await dlgConfirm('Ви впевнені? Це незворотна дія.', { title: 'Остаточне підтвердження', okLabel: 'Видалити все', danger: true });
+  if (!ok2) return;
+  projects = {};
+  activeId = null;
+  localStorage.removeItem(PROJECTS_KEY);
+  localStorage.removeItem(ACTIVE_KEY);
+  editor.innerHTML = '';
+  updateToggleLabel();
+  renderProjects();
+});
+
+document.getElementById('btnExportAll').addEventListener('click', () => {
+  // Зберігаємо поточний стан перед експортом
+  save();
+  const data = JSON.stringify({ version: 1, projects, activeId }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `scenario-projects-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+const importInput = document.getElementById('importFile');
+document.getElementById('btnImport').addEventListener('click', () => importInput.click());
+importInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.projects) throw new Error('Невірний формат');
+      const choice = await dlgChoice(
+        `Знайдено ${Object.keys(data.projects).length} проект(ів).\nЩо зробити з поточними ${Object.keys(projects).length}?`,
+        [
+          { label: 'Скасувати', value: 'cancel' },
+          { label: 'Замінити', value: 'replace', variant: 'danger' },
+          { label: 'Додати', value: 'merge', variant: 'primary' },
+        ],
+        { title: 'Імпорт проектів' }
+      );
+      if (choice === 'cancel' || !choice) return;
+      if (choice === 'merge') {
+        for (const [id, p] of Object.entries(data.projects)) {
+          const newId = projects[id] ? 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) : id;
+          projects[newId] = p;
+        }
+      } else if (choice === 'replace') {
+        projects = data.projects;
+        activeId = data.activeId && projects[data.activeId] ? data.activeId : Object.keys(projects)[0];
+      }
+      saveProjects(projects);
+      if (activeId && projects[activeId]) switchProject(activeId);
+      renderProjects();
+    } catch (err) {
+      dlgAlert('Помилка імпорту: ' + err.message, 'Помилка');
+    }
+  };
+  reader.readAsText(file);
+  importInput.value = '';
+});
+
+const EMPTY_CONTENT = `<div class="scene-heading" data-type="scene-heading" data-placeholder="ІНТ. МІСЦЕ — ЧАС"><br></div>`;
+
+function createProject(name) {
+  const id = 'p_' + Date.now();
+  projects[id] = {
+    name: name,
+    content: EMPTY_CONTENT,
+    dict: { characters: {}, locations: {}, phrases: {} },
+    updated: Date.now(),
+  };
+  saveProjects(projects);
+  switchProject(id);
+}
+
+updateToggleLabel();
+
+// Початковий view: якщо нема активного проекту — галерея, інакше — редактор
+if (activeId && projects[activeId]) setView('editor');
+else setView('projects');
+
+function getCurrentBlock() {
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return null;
+  let node = sel.getRangeAt(0).startContainer;
+  while (node && node !== editor) {
+    if (node.nodeType === 1 && node.parentNode === editor) return node;
+    node = node.parentNode;
+  }
+  return null;
+}
+
+function setBlockType(block, type) {
+  block.className = type;
+  block.setAttribute('data-type', type);
+  block.setAttribute('data-placeholder', PLACEHOLDERS[type] || '');
+}
+
+function setCaretToEnd(node) {
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function updateHint() {
+  const b = getCurrentBlock();
+  const type = b?.getAttribute('data-type');
+  hint.textContent = LABELS[type] || '—';
+  for (const btn of toolbar.querySelectorAll('button[data-fmt]')) {
+    btn.classList.toggle('active', btn.dataset.fmt === type);
+  }
+}
+
+let currentSuggestions = [];
+let selectedIdx = 0;
+
+function hideSuggestions() {
+  suggBox.style.display = 'none';
+  currentSuggestions = [];
+}
+
+function showSuggestions(items, block) {
+  if (!items.length) { hideSuggestions(); return; }
+  currentSuggestions = items;
+  selectedIdx = 0;
+  renderSuggestions();
+  const rect = block.getBoundingClientRect();
+  suggBox.style.left = (rect.left + window.scrollX) + 'px';
+  suggBox.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+  suggBox.style.display = 'block';
+}
+
+function renderSuggestions() {
+  suggBox.innerHTML = '';
+  currentSuggestions.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'item' + (i === selectedIdx ? ' selected' : '');
+    el.innerHTML = `${s.label || s.value}<span class="kind">${s.kind || ''}</span>`;
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      applySuggestion(s);
+    });
+    suggBox.appendChild(el);
+  });
+}
+
+function applySuggestion(s) {
+  const block = getCurrentBlock();
+  if (!block) return;
+  if (s.setType) setBlockType(block, s.setType);
+  block.textContent = s.value;
+  setCaretToEnd(block);
+  hideSuggestions();
+  save();
+  updateHint();
+}
+
+function buildSuggestions(block) {
+  const type = block.getAttribute('data-type') || 'action';
+  const text = block.textContent.trim();
+  const lower = text.toLowerCase();
+  const upper = text.toUpperCase();
+  const items = [];
+
+  if (type === 'scene-heading' || type === 'action') {
+    const hasPrefix = /^(ІНТ\.|НАТ\.|ЕКСТ\.|ІНТ\.\/НАТ\.)/i.test(text);
+
+    // Префікси — лише коли префіксу ще нема
+    if (!hasPrefix) {
+      for (const p of SCENE_PREFIXES) {
+        if (p.match.some(m => lower.startsWith(m))) {
+          items.push({
+            value: p.expand, label: p.label + ' →', kind: 'префікс',
+            setType: 'scene-heading',
+          });
+        } else if (!text && type === 'scene-heading') {
+          items.push({
+            value: p.expand, label: p.label, kind: 'префікс',
+            setType: 'scene-heading',
+          });
+        }
+      }
+    }
+
+    if (hasPrefix) {
+      const hasDash = /[—–-]/.test(text);
+      if (hasDash) {
+        // Після тире — підказуємо час
+        const afterDash = text.split(/[—–-]/).pop().trim().toUpperCase();
+        const base = text.replace(/[—–-]\s*.*$/, '— ');
+        for (const t of TIME_OF_DAY) {
+          if (!afterDash || t.startsWith(afterDash)) {
+            items.push({ value: base + t, label: t, kind: 'час' });
+          }
+        }
+      } else {
+        // До тире — підказуємо локації
+        const locSorted = Object.entries(dict.locations).sort((a,b) => b[1]-a[1]);
+        const pref = text.replace(/^(ІНТ\.|НАТ\.|ЕКСТ\.|ІНТ\.\/НАТ\.)\s*/i, '').toUpperCase().trim();
+        const prefixMatch = text.match(/^(ІНТ\.|НАТ\.|ЕКСТ\.|ІНТ\.\/НАТ\.)\s*/i)?.[0] || '';
+        for (const [loc, _] of locSorted) {
+          if (loc.startsWith(pref) && loc !== pref) {
+            items.push({ value: prefixMatch + loc + ' — ', label: loc, kind: 'місце' });
+          }
+        }
+        if (pref) {
+          items.push({ value: prefixMatch + pref + ' — ', label: pref + ' — (додати тире)', kind: 'тире' });
+        }
+      }
+    }
+  }
+
+  if (type === 'character') {
+    const names = Object.entries(dict.characters).sort((a,b) => b[1]-a[1]);
+    for (const [name, _] of names) {
+      if (!upper || name.startsWith(upper)) {
+        items.push({ value: name, label: name, kind: 'герой' });
+      }
+    }
+  }
+
+  if (type === 'parenthetical') {
+    for (const p of PARENTHETICALS) {
+      if (!text || p.toLowerCase().startsWith(lower)) {
+        items.push({ value: p, label: p, kind: 'ремарка' });
+      }
+    }
+  }
+
+  if (type === 'transition') {
+    for (const t of TRANSITIONS) {
+      if (!upper || t.startsWith(upper)) {
+        items.push({ value: t, label: t, kind: 'перехід' });
+      }
+    }
+  }
+
+  if (type === 'action') {
+    for (const p of SCENE_PREFIXES) {
+      if (p.match.some(m => lower.startsWith(m))) {
+        items.unshift({
+          value: p.expand, label: '→ ' + p.label + ' (зробити МІСЦЕ/ЧАС)', kind: 'формат',
+          setType: 'scene-heading',
+        });
+      }
+    }
+  }
+
+  return items.slice(0, 8);
+}
+
+toolbar.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-fmt]');
+  if (!btn) return;
+  const type = btn.dataset.fmt;
+  let block = getCurrentBlock();
+  if (!block) { block = document.createElement('div'); editor.appendChild(block); }
+  setBlockType(block, type);
+  setCaretToEnd(block);
+  editor.focus();
+  save();
+  updateHint();
+});
+
+editor.addEventListener('keydown', (e) => {
+  if (suggBox.style.display === 'block' && currentSuggestions.length) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); selectedIdx = (selectedIdx + 1) % currentSuggestions.length; renderSuggestions(); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); selectedIdx = (selectedIdx - 1 + currentSuggestions.length) % currentSuggestions.length; renderSuggestions(); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); applySuggestion(currentSuggestions[selectedIdx]); return; }
+    if (e.key === 'Escape') { e.preventDefault(); hideSuggestions(); return; }
+  }
+
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const block = getCurrentBlock();
+    if (block) {
+      const items = buildSuggestions(block);
+      showSuggestions(items, block);
+    }
+    return;
+  }
+
+  if (e.key === 'Enter' && !e.shiftKey) {
+    const block = getCurrentBlock();
+    if (!block) return;
+    e.preventDefault();
+    learnDict();
+    const curType = block.getAttribute('data-type') || 'action';
+    const nextType = NEXT_AFTER[curType] || 'action';
+    const newDiv = document.createElement('div');
+    setBlockType(newDiv, nextType);
+    newDiv.innerHTML = '<br>';
+    block.after(newDiv);
+    setCaretToEnd(newDiv);
+    save();
+    updateHint();
+  }
+});
+
+editor.addEventListener('input', () => {
+  save();
+  updateHint();
+  const block = getCurrentBlock();
+  if (!block) { hideSuggestions(); return; }
+  const text = block.textContent.trim();
+  const type = block.getAttribute('data-type');
+  if (!text && type !== 'scene-heading' && type !== 'transition' && type !== 'parenthetical') {
+    hideSuggestions();
+    return;
+  }
+  const items = buildSuggestions(block);
+  if (items.length) showSuggestions(items, block);
+  else hideSuggestions();
+});
+
+document.addEventListener('selectionchange', updateHint);
+document.addEventListener('mousedown', (e) => {
+  if (!suggBox.contains(e.target)) hideSuggestions();
+});
+
+const HOTKEYS = { '1':'scene-heading','2':'action','3':'character','4':'dialogue','5':'parenthetical','6':'transition' };
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && HOTKEYS[e.key]) {
+    e.preventDefault();
+    const block = getCurrentBlock();
+    if (block) { setBlockType(block, HOTKEYS[e.key]); save(); updateHint(); }
+  }
+});
+
+function exportPDF() {
+  // Рендер HTML → PDF через html2pdf (підтримує кирилицю)
+  const container = document.createElement('div');
+  container.style.cssText = `
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12pt;
+    line-height: 1.5;
+    color: #000;
+    background: #fff;
+    padding: 60pt 72pt;
+    width: 210mm;
+    box-sizing: border-box;
+  `;
+  container.innerHTML = `<style>
+    .scene-heading { text-transform: uppercase; font-weight: bold; margin: 18pt 0 8pt; }
+    .action { margin: 8pt 0; }
+    .character { text-transform: uppercase; font-weight: bold; margin: 14pt 0 0 35%; }
+    .dialogue { margin: 2pt 20% 8pt 15%; }
+    .parenthetical { font-style: italic; margin: 2pt 0 2pt 25%; }
+    .transition { text-transform: uppercase; font-weight: bold; text-align: right; margin: 12pt 0; }
+  </style>` + editor.innerHTML;
+
+  document.body.appendChild(container);
+  html2pdf()
+    .set({
+      margin: 0,
+      filename: 'сценарій.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+    })
+    .from(container)
+    .save()
+    .then(() => container.remove())
+    .catch((err) => { console.error(err); container.remove(); });
+}
+
+function exportDOCX() {
+  const content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+body { font-family: 'Courier New', monospace; font-size: 12pt; }
+.scene-heading { text-transform: uppercase; font-weight: bold; margin: 18pt 0 8pt; }
+.action { margin: 8pt 0; }
+.character { text-transform: uppercase; font-weight: bold; margin: 14pt 0 0 35%; }
+.dialogue { margin: 2pt 20% 8pt 15%; }
+.parenthetical { font-style: italic; margin: 2pt 0 2pt 25%; }
+.transition { text-transform: uppercase; font-weight: bold; text-align: right; margin: 12pt 0; }
+</style></head><body>${editor.innerHTML}</body></html>`;
+  const blob = htmlDocx.asBlob(content);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'сценарій.docx'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+updateHint();
+</script>
+</body>
+</html>
