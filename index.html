@@ -646,6 +646,8 @@
   <button data-fmt="dialogue" title="Репліка (Ctrl+4)">Репліка</button>
   <button data-fmt="parenthetical" title="Ремарка (Ctrl+5)">(ремарка)</button>
   <button data-fmt="transition" title="Перехід (Ctrl+6)">ПЕРЕХІД</button>
+  <div class="sep" style="width:1px;background:#555;margin:0 4px"></div>
+  <button id="btnReformat" title="Розбити поточний документ на абзаци за переносами рядків">⇅ Розбити</button>
 </div>
 
 <div class="editor-wrap">
@@ -1670,6 +1672,110 @@ function buildSuggestions(block) {
 
   return items.slice(0, 8);
 }
+
+// --- Автовизначення типу блока за текстом ---
+function detectBlockType(text) {
+  const t = text.trim();
+  if (!t) return 'action';
+  if (/^(ІНТ\.?|НАТ\.?|ЕКСТ\.?|INT\.?|EXT\.?|ИНТ\.?|ЭКСТ\.?)/i.test(t)) return 'scene-heading';
+  if (/^(ПЕРЕХІД|ЗАТЕМНЕННЯ|ІЗ ЗАТЕМНЕННЯ|МОНТАЖНИЙ|РІЗКО|КІНЕЦЬ|НАПЛИВ|FADE|CUT TO|DISSOLVE)/i.test(t)) return 'transition';
+  if (/^\(.+\)$/.test(t) && t.length < 60) return 'parenthetical';
+  // Герой: коротке ALL CAPS (без рядкових)
+  if (/^[А-ЯЁІЇЄҐA-Z][А-ЯЁІЇЄҐA-Z\s,\.\-'’()0-9]{0,40}$/u.test(t) && !/[а-яёa-z]/u.test(t) && t.length < 50) {
+    return 'character';
+  }
+  return 'action';
+}
+
+// --- Розбиття великого блока на окремі ---
+function splitBlocksFromText(text) {
+  const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 0);
+  const blocks = [];
+  let currentAction = [];
+  for (const line of lines) {
+    const type = detectBlockType(line);
+    if (type === 'action') {
+      currentAction.push(line);
+    } else {
+      if (currentAction.length) {
+        blocks.push({ type: 'action', text: currentAction.join(' ') });
+        currentAction = [];
+      }
+      blocks.push({ type, text: line });
+    }
+  }
+  if (currentAction.length) blocks.push({ type: 'action', text: currentAction.join(' ') });
+  return blocks;
+}
+
+function reformatEditorContent() {
+  const lines = [];
+  for (const child of editor.children) {
+    if (child.nodeType !== 1) continue;
+    // textContent з блока + штучний перенос
+    const html = child.innerHTML;
+    // Перетворюємо <br> у \n
+    const text = html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
+    const decoded = (() => { const d = document.createElement('div'); d.innerHTML = text; return d.textContent; })();
+    lines.push(...decoded.split(/\n/));
+  }
+  const blocks = splitBlocksFromText(lines.join('\n'));
+  if (!blocks.length) return;
+  editor.innerHTML = '';
+  for (const b of blocks) {
+    const div = document.createElement('div');
+    div.className = b.type;
+    div.setAttribute('data-type', b.type);
+    div.setAttribute('data-placeholder', PLACEHOLDERS[b.type] || '');
+    div.textContent = b.text;
+    editor.appendChild(div);
+  }
+  save();
+  updateHint();
+  updateBlockChip();
+}
+
+document.getElementById('btnReformat').addEventListener('click', async () => {
+  const ok = await dlgConfirm(
+    'Розбити поточний документ на окремі абзаци за переносами рядків?\nТипи (МІСЦЕ/ЧАС, ГЕРОЙ, ремарка, ПЕРЕХІД) визначатимуться автоматично.',
+    { title: 'Розбити на абзаци', okLabel: 'Розбити' }
+  );
+  if (ok) reformatEditorContent();
+});
+
+// --- Розумна вставка з буфера ---
+editor.addEventListener('paste', (e) => {
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+  if (!text) return;
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return;
+  if (lines.length === 1) {
+    document.execCommand('insertText', false, lines[0]);
+    return;
+  }
+  const blocks = splitBlocksFromText(text);
+  let insertAfter = getCurrentBlock() || editor.lastElementChild;
+  if (insertAfter && !insertAfter.textContent.trim()) {
+    const first = blocks.shift();
+    setBlockType(insertAfter, first.type);
+    insertAfter.textContent = first.text;
+  }
+  for (const b of blocks) {
+    const div = document.createElement('div');
+    div.className = b.type;
+    div.setAttribute('data-type', b.type);
+    div.setAttribute('data-placeholder', PLACEHOLDERS[b.type] || '');
+    div.textContent = b.text;
+    if (insertAfter && insertAfter.parentNode === editor) insertAfter.after(div);
+    else editor.appendChild(div);
+    insertAfter = div;
+  }
+  setCaretToEnd(insertAfter);
+  save();
+  updateHint();
+  updateBlockChip();
+});
 
 // mousedown + preventDefault — щоб клік кнопки не забирав фокус з редактора
 toolbar.addEventListener('mousedown', (e) => {
