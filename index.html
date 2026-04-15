@@ -825,36 +825,11 @@ function handleGoogleCredential(response) {
   localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
   // Завантажуємо проекти цього юзера з локального кешу
   projects = loadProjects();
-  // Міграція legacy ключів при першому вході (#12)
-  if (Object.keys(projects).length === 0) {
-    const legacy = localStorage.getItem('scenario_projects_v1');
-    if (legacy) {
-      try {
-        const data = JSON.parse(legacy);
-        if (Object.keys(data).length > 0) {
-          projects = data;
-          saveProjects(projects);
-          for (const id of Object.keys(projects)) scheduleCloudPush(id);
-          console.log('[migration] imported', Object.keys(projects).length, 'legacy projects');
-        }
-      } catch {}
-    }
-    // Аварійний бекап (якщо save() пройшов без user)
-    const pending = localStorage.getItem('scenario_pending_save');
-    if (pending) {
-      try {
-        const data = JSON.parse(pending);
-        for (const [id, p] of Object.entries(data)) {
-          if (!projects[id] || (p.updated || 0) > (projects[id].updated || 0)) {
-            projects[id] = p;
-            scheduleCloudPush(id);
-          }
-        }
-        saveProjects(projects);
-        localStorage.removeItem('scenario_pending_save');
-      } catch {}
-    }
-  }
+  // Прибираємо legacy сміття щоб не плуталось (НЕ мігруємо — це не дані цього юзера)
+  localStorage.removeItem('scenario_projects_v1');
+  localStorage.removeItem('scenario_active_project_v1');
+  localStorage.removeItem('scenario_editor_content_uk');
+  localStorage.removeItem('scenario_editor_dict_uk');
   activeId = localStorage.getItem(activeKey()) || Object.keys(projects)[0] || null;
   dict = (activeId && projects[activeId]?.dict) || { characters: {}, locations: {}, phrases: {} };
   updateUserUi();
