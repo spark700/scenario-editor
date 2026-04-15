@@ -1656,17 +1656,27 @@ function buildSuggestions(block) {
   return items.slice(0, 8);
 }
 
-toolbar.addEventListener('click', (e) => {
+// mousedown + preventDefault — щоб клік кнопки не забирав фокус з редактора
+toolbar.addEventListener('mousedown', (e) => {
   const btn = e.target.closest('button[data-fmt]');
   if (!btn) return;
+  e.preventDefault();
   const type = btn.dataset.fmt;
   let block = getCurrentBlock();
-  if (!block) { block = document.createElement('div'); editor.appendChild(block); }
+  if (!block) {
+    // якщо в редакторі нема каретки — беремо останній блок або створюємо
+    block = editor.lastElementChild;
+    if (!block) {
+      block = document.createElement('div');
+      editor.appendChild(block);
+    }
+  }
   setBlockType(block, type);
   setCaretToEnd(block);
   editor.focus();
   save();
   updateHint();
+  updateBlockChip();
 });
 
 editor.addEventListener('keydown', (e) => {
