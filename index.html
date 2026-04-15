@@ -825,6 +825,36 @@ function handleGoogleCredential(response) {
   localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
   // Завантажуємо проекти цього юзера з локального кешу
   projects = loadProjects();
+  // Міграція legacy ключів при першому вході (#12)
+  if (Object.keys(projects).length === 0) {
+    const legacy = localStorage.getItem('scenario_projects_v1');
+    if (legacy) {
+      try {
+        const data = JSON.parse(legacy);
+        if (Object.keys(data).length > 0) {
+          projects = data;
+          saveProjects(projects);
+          for (const id of Object.keys(projects)) scheduleCloudPush(id);
+          console.log('[migration] imported', Object.keys(projects).length, 'legacy projects');
+        }
+      } catch {}
+    }
+    // Аварійний бекап (якщо save() пройшов без user)
+    const pending = localStorage.getItem('scenario_pending_save');
+    if (pending) {
+      try {
+        const data = JSON.parse(pending);
+        for (const [id, p] of Object.entries(data)) {
+          if (!projects[id] || (p.updated || 0) > (projects[id].updated || 0)) {
+            projects[id] = p;
+            scheduleCloudPush(id);
+          }
+        }
+        saveProjects(projects);
+        localStorage.removeItem('scenario_pending_save');
+      } catch {}
+    }
+  }
   activeId = localStorage.getItem(activeKey()) || Object.keys(projects)[0] || null;
   dict = (activeId && projects[activeId]?.dict) || { characters: {}, locations: {}, phrases: {} };
   updateUserUi();
@@ -834,6 +864,9 @@ function handleGoogleCredential(response) {
 }
 
 function signOut() {
+  // Flush усе незбережене перед виходом (#5)
+  if (activeId && projects[activeId]) save();
+  flushAll();
   currentUser = null;
   localStorage.removeItem(USER_KEY);
   projects = {};
@@ -884,6 +917,17 @@ document.getElementById('btnSignOut').addEventListener('click', signOut);
 // --- Cloud sync ---
 async function apiFetch(path, options = {}) {
   if (!currentUser?.token) throw new Error('not_signed_in');
+  // Перевіряємо термін дії токена локально щоб не робити зайвий запит (#4)
+  try {
+    const payload = decodeJwt(currentUser.token);
+    if (payload.exp * 1000 < Date.now()) {
+      console.warn('token expired, requesting silent re-auth');
+      // Не вилогуємось одразу — даємо шанс синку при наступному вході
+      throw new Error('token_expired');
+    }
+  } catch (e) {
+    if (e.message === 'token_expired') throw e;
+  }
   const res = await fetch(API_BASE + path, {
     ...options,
     headers: {
@@ -893,7 +937,8 @@ async function apiFetch(path, options = {}) {
     },
   });
   if (res.status === 401) {
-    signOut();
+    // Не викликаємо signOut() автоматично — це знищує робочий стан (#4)
+    // Просто кидаємо помилку, наступний flushImmediate спробує ще раз
     throw new Error('unauthorized');
   }
   if (!res.ok) throw new Error('api_error_' + res.status);
@@ -926,28 +971,47 @@ async function syncFromCloud() {
     const remoteList = await cloudListProjects();
     // Завантажуємо нові/оновлені з клауду
     for (const [id, meta] of Object.entries(remoteList)) {
+      // Перечитуємо local щоразу — користувач міг редагувати під час await (#2)
       const local = projects[id];
-      if (!local || (meta.updated || 0) > (local.updated || 0)) {
-        try {
-          const full = await cloudGetProject(id);
+      const remoteUpdated = meta.updated || 0;
+      const localUpdated = local?.updated || 0;
+      if (local && localUpdated >= remoteUpdated) continue;
+
+      try {
+        const full = await cloudGetProject(id);
+        // ПОВТОРНА перевірка перед записом — користувач міг встигнути натиснути клавішу (#2)
+        const stillStale = !projects[id] || (projects[id].updated || 0) < (full.updated || 0);
+        if (stillStale) {
           projects[id] = {
             name: full.name,
             content: full.content,
             dict: full.dict || { characters: {}, locations: {}, phrases: {} },
             updated: full.updated,
           };
-        } catch (e) { console.warn('fetch fail', id, e); }
-      }
+          // Якщо це поточний відкритий проект — оновлюємо редактор (#3)
+          if (id === activeId && document.body.getAttribute('data-view') === 'editor') {
+            const sel = window.getSelection();
+            const wasFocused = document.activeElement === editor;
+            editor.innerHTML = full.content || '';
+            if (typeof ensureAttrs === 'function') ensureAttrs();
+            if (wasFocused) editor.focus();
+          }
+        }
+      } catch (e) { console.warn('fetch fail', id, e); }
     }
-    // Пушимо локальні що новіші
+    // Пушимо локальні що новіші або відсутні в клауді (з урахуванням tombstones #14)
+    const tombs = loadTombstones();
     for (const [id, p] of Object.entries(projects)) {
       const remote = remoteList[id];
+      if (tombs.has(id)) continue;  // не воскресати видалене
       if (!remote || (p.updated || 0) > (remote.updated || 0)) {
         try {
           await cloudSaveProject(id, p);
         } catch (e) { console.warn('push fail', id, e); }
       }
     }
+    // Видаляємо локально те що видалено на іншому пристрої (відсутнє в клауді, але є локально без tombstone)
+    // Поточний підхід: не видаляємо автоматично, лише попереджаємо tombstone про повторне завантаження
     saveProjects(projects);
     if (document.body.getAttribute('data-view') === 'projects') renderProjects();
   } catch (e) {
@@ -957,15 +1021,53 @@ async function syncFromCloud() {
   }
 }
 
-// Дебаунс пуш у клауд при зміні
-let pushTimer = null;
+// Дебаунс пуш у клауд — окремий таймер на кожен проект (#13)
+const pushTimers = new Map();
 function scheduleCloudPush(id) {
   if (!currentUser || !projects[id]) return;
-  clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => {
+  if (pushTimers.has(id)) clearTimeout(pushTimers.get(id));
+  pushTimers.set(id, setTimeout(() => {
+    pushTimers.delete(id);
     cloudSaveProject(id, projects[id]).catch(e => console.warn('push err', e));
-  }, 2000);
+  }, 1500));
 }
+
+// Негайний пуш (для важливих подій: close, signOut, create) — sendBeacon щоб гарантувати доставку (#1, #5)
+function flushImmediate(id) {
+  if (!currentUser || !projects[id]) return;
+  if (pushTimers.has(id)) { clearTimeout(pushTimers.get(id)); pushTimers.delete(id); }
+  const url = API_BASE + '/projects/' + id;
+  const body = JSON.stringify(projects[id]);
+  // Спроба через sendBeacon (працює навіть при закритті вкладки)
+  if (navigator.sendBeacon) {
+    const blob = new Blob([JSON.stringify({ ...projects[id], _token: currentUser.token })], { type: 'application/json' });
+    navigator.sendBeacon(API_BASE + '/projects/' + id + '?beacon=1&token=' + encodeURIComponent(currentUser.token), blob);
+  }
+  // Дублюємо звичайним fetch (не блокуюче)
+  fetch(url, {
+    method: 'PUT',
+    keepalive: true,
+    headers: {
+      'Authorization': 'Bearer ' + currentUser.token,
+      'Content-Type': 'application/json',
+    },
+    body,
+  }).catch(() => {});
+}
+
+function flushAll() {
+  if (!currentUser) return;
+  for (const id of Array.from(pushTimers.keys())) {
+    flushImmediate(id);
+  }
+}
+
+// Гарантований flush при закритті вкладки / навігації (#1)
+window.addEventListener('pagehide', flushAll);
+window.addEventListener('beforeunload', flushAll);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushAll();
+});
 
 // --- Проекти (прив'язані до користувача) ---
 function projectsKey() { return currentUser ? `scenario_projects_${currentUser.sub}` : null; }
@@ -979,8 +1081,31 @@ function loadProjects() {
 }
 function saveProjects(p) {
   const key = projectsKey();
-  if (!key) return;
-  localStorage.setItem(key, JSON.stringify(p));
+  if (!key) {
+    // Аварійний фолбек якщо user вилогувався — пишемо під тимчасовим ключем
+    try { localStorage.setItem('scenario_pending_save', JSON.stringify(p)); } catch {}
+    return;
+  }
+  try {
+    localStorage.setItem(key, JSON.stringify(p));
+  } catch (e) {
+    console.error('localStorage save failed', e);
+    // Спробуємо хоча б у клауд через flush
+    if (currentUser && activeId && p[activeId]) flushImmediate(activeId);
+  }
+}
+
+// Tombstones для видалених на іншому пристрої (#14)
+function tombstoneKey() { return currentUser ? `scenario_tombstones_${currentUser.sub}` : null; }
+function loadTombstones() {
+  const k = tombstoneKey();
+  if (!k) return new Set();
+  try { return new Set(JSON.parse(localStorage.getItem(k) || '[]')); } catch { return new Set(); }
+}
+function saveTombstones(set) {
+  const k = tombstoneKey();
+  if (!k) return;
+  try { localStorage.setItem(k, JSON.stringify([...set])); } catch {}
 }
 
 let projects = loadProjects();
@@ -1008,6 +1133,7 @@ function learnDict() {
   if (activeId && projects[activeId]) {
     projects[activeId].dict = dict;
     saveProjects(projects);
+    if (currentUser) scheduleCloudPush(activeId); // #15
   }
 }
 
@@ -1036,11 +1162,12 @@ function ensureAttrs() {
 if (activeId && projects[activeId]) { ensureAttrs(); learnDict(); }
 
 function save() {
-  if (!currentUser || !activeId || !projects[activeId]) return;
+  if (!activeId || !projects[activeId]) return;
   projects[activeId].content = editor.innerHTML;
   projects[activeId].updated = Date.now();
+  // Завжди пишемо локально, навіть якщо user вилогувався (#9)
   saveProjects(projects);
-  scheduleCloudPush(activeId);
+  if (currentUser) scheduleCloudPush(activeId);
 }
 
 // --- UI проектів ---
@@ -1152,7 +1279,9 @@ function renderProjects() {
       const nn = await dlgPrompt('Нова назва проекту:', p.name, { title: 'Перейменувати' });
       if (nn && nn.trim()) {
         p.name = nn.trim();
+        p.updated = Date.now();
         saveProjects(projects);
+        scheduleCloudPush(id); // #7
         renderProjects();
         updateToggleLabel();
       }
@@ -1168,6 +1297,7 @@ function renderProjects() {
         updated: Date.now(),
       };
       saveProjects(projects);
+      scheduleCloudPush(newId); // #7/#8
       renderProjects();
     });
 
@@ -1177,6 +1307,10 @@ function renderProjects() {
       if (!ok) return;
       delete projects[id];
       saveProjects(projects);
+      // Записуємо tombstone щоб sync не воскресив (#14)
+      const tombs = loadTombstones();
+      tombs.add(id);
+      saveTombstones(tombs);
       if (currentUser) cloudDeleteProject(id).catch(() => {});
       if (id === activeId) {
         activeId = null;
@@ -1263,14 +1397,20 @@ importInput.addEventListener('change', (e) => {
         { title: 'Імпорт проектів' }
       );
       if (choice === 'cancel' || !choice) return;
+      // Sanitize id (#10): тільки безпечні символи, інакше регенеруємо
+      const safeId = (id) => /^[\w.-]+$/.test(id) ? id : 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
       if (choice === 'merge') {
         for (const [id, p] of Object.entries(data.projects)) {
-          const newId = projects[id] ? 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) : id;
+          const newId = projects[id] ? 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) : safeId(id);
           projects[newId] = p;
+          scheduleCloudPush(newId);
         }
       } else if (choice === 'replace') {
-        projects = data.projects;
-        activeId = data.activeId && projects[data.activeId] ? data.activeId : Object.keys(projects)[0];
+        const cleaned = {};
+        for (const [id, p] of Object.entries(data.projects)) cleaned[safeId(id)] = p;
+        projects = cleaned;
+        activeId = data.activeId && projects[safeId(data.activeId)] ? safeId(data.activeId) : Object.keys(projects)[0];
+        for (const id of Object.keys(projects)) scheduleCloudPush(id);
       }
       saveProjects(projects);
       if (activeId && projects[activeId]) switchProject(activeId);
@@ -1294,6 +1434,7 @@ function createProject(name) {
     updated: Date.now(),
   };
   saveProjects(projects);
+  scheduleCloudPush(id); // #6
   switchProject(id);
 }
 
