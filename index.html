@@ -509,7 +509,17 @@
   }
   .suggestions .item.selected .kind { color: #cde0f2; }
 
-  .editor div[data-type] { min-height: 1.6em; }
+  .editor div[data-type] {
+    min-height: 1.6em;
+    border-left: 3px solid transparent;
+    padding-left: 8px;
+    margin-left: -11px;
+    transition: border-color .12s, background-color .12s;
+  }
+  .editor div[data-type].is-active-block {
+    border-left-color: #88b065;
+    background-color: rgba(136, 176, 101, .06);
+  }
   .editor .scene-heading { text-transform: uppercase; font-weight: bold; margin: 24px 0 12px; }
   .editor .action { margin: 12px 0; }
   .editor .character { text-transform: uppercase; font-weight: bold; margin: 20px 0 0 40%; }
@@ -1495,6 +1505,11 @@ function getCurrentBlock() {
 }
 
 function setBlockType(block, type) {
+  // Захист: ніколи не міняємо тип у editor-контейнера
+  if (!block || block === editor || !editor.contains(block) || block.parentNode !== editor) {
+    console.warn('setBlockType: invalid target', block);
+    return;
+  }
   block.className = type;
   block.setAttribute('data-type', type);
   block.setAttribute('data-placeholder', PLACEHOLDERS[type] || '');
@@ -1750,11 +1765,15 @@ function updateBlockChip() {
   const { chip: blockChip, menu: chipMenu } = getChipEls();
   if (!blockChip || !chipMenu) return;
   const block = getCurrentBlock();
+  // Очищаємо попередню підсвітку
+  for (const el of editor.querySelectorAll('.is-active-block')) el.classList.remove('is-active-block');
   if (!block || document.body.getAttribute('data-view') !== 'editor') {
     blockChip.classList.remove('visible');
     chipMenu.classList.remove('open');
     return;
   }
+  // Підсвічуємо активний блок
+  block.classList.add('is-active-block');
   const type = block.getAttribute('data-type') || 'action';
   blockChip.textContent = LABELS[type] || type;
   blockChip.dataset.type = type;
@@ -1790,21 +1809,32 @@ function renderChipMenu(currentType) {
     opt.children[1].textContent = HOTKEY_LABEL[t] || '';
     opt.addEventListener('mousedown', (e) => {
       e.preventDefault();
-      const block = getCurrentBlock();
-      if (block) {
+      // Беремо збережений блок (фокус міг втратитись)
+      const block = savedBlockForChip || getCurrentBlock();
+      if (block && block !== editor && editor.contains(block)) {
         setBlockType(block, t);
+        // Повертаємо каретку в кінець блока
+        setCaretToEnd(block);
+        editor.focus();
         save();
         updateHint();
         updateBlockChip();
       }
       chipMenu.classList.remove('open');
+      savedBlockForChip = null;
     });
     chipMenu.appendChild(opt);
   }
 }
 
-document.getElementById('blockChip').addEventListener('click', (e) => {
+// Збережений активний блок (на випадок втрати фокусу при кліку на чіп)
+let savedBlockForChip = null;
+
+document.getElementById('blockChip').addEventListener('mousedown', (e) => {
+  e.preventDefault(); // не забираємо фокус з редактора
   e.stopPropagation();
+  // Запам'ятовуємо активний блок ДО того як могли втратити селекцію
+  savedBlockForChip = getCurrentBlock();
   const { chip: blockChip, menu: chipMenu } = getChipEls();
   if (chipMenu.classList.contains('open')) {
     chipMenu.classList.remove('open');
