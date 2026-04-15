@@ -133,9 +133,61 @@
   body[data-view="projects"] .export-panel,
   body[data-view="projects"] .projects-panel,
   body[data-view="projects"] .format-hint,
-  body[data-view="projects"] #view-editor { display: none !important; }
+  body[data-view="projects"] #view-editor,
+  body[data-view="projects"] #view-login { display: none !important; }
 
-  body[data-view="editor"] #view-projects { display: none !important; }
+  body[data-view="editor"] #view-projects,
+  body[data-view="editor"] #view-login { display: none !important; }
+
+  body[data-view="login"] .floating-toolbar,
+  body[data-view="login"] .editor-wrap,
+  body[data-view="login"] .export-panel,
+  body[data-view="login"] .projects-panel,
+  body[data-view="login"] .format-hint,
+  body[data-view="login"] #view-editor,
+  body[data-view="login"] #view-projects { display: none !important; }
+
+  /* Login screen */
+  #view-login {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+  .login-card {
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+    padding: 40px 32px;
+    background: #1f1f1f;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  }
+  .login-card h1 {
+    margin: 0 0 8px;
+    font-weight: normal;
+    font-size: 28px;
+    color: #fff;
+  }
+  .login-card .subtitle {
+    color: #999;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 32px;
+  }
+  .login-card #gsiLoginButton {
+    display: flex;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  .login-card .footer-note {
+    margin-top: 28px;
+    font-size: 11px;
+    color: #666;
+    line-height: 1.5;
+  }
 
   /* Галерея проектів */
   #view-projects {
@@ -476,6 +528,15 @@
 </head>
 <body>
 
+<div id="view-login">
+  <div class="login-card">
+    <h1>Редактор сценаріїв</h1>
+    <p class="subtitle">Увійдіть через Google, щоб зберігати сценарії в хмарі та синхронізувати між пристроями.</p>
+    <div id="gsiLoginButton"></div>
+    <p class="footer-note">Ваші проекти зберігаються у вашому приватному сховищі.<br>Ніхто інший їх не бачить.</p>
+  </div>
+</div>
+
 <div id="view-projects">
   <div class="gallery-header">
     <h1>Мої сценарії<span class="count" id="projectsCount"></span></h1>
@@ -762,17 +823,26 @@ function handleGoogleCredential(response) {
     token: response.credential,
   };
   localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+  // Завантажуємо проекти цього юзера з локального кешу
+  projects = loadProjects();
+  activeId = localStorage.getItem(activeKey()) || Object.keys(projects)[0] || null;
+  dict = (activeId && projects[activeId]?.dict) || { characters: {}, locations: {}, phrases: {} };
   updateUserUi();
-  // Синхронізуємо при вході
+  setView('projects');
+  // Синхронізуємо з клаудом
   syncFromCloud();
 }
 
 function signOut() {
   currentUser = null;
   localStorage.removeItem(USER_KEY);
+  projects = {};
+  activeId = null;
+  editor.innerHTML = '';
   if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
   updateUserUi();
   renderGsiButton();
+  setView('login');
 }
 
 function renderGsiButton() {
@@ -782,10 +852,20 @@ function renderGsiButton() {
     callback: handleGoogleCredential,
     auto_select: false,
   });
-  google.accounts.id.renderButton(
-    document.getElementById('gsiButton'),
-    { theme: 'filled_black', size: 'medium', text: 'signin_with', shape: 'pill' }
-  );
+  // Кнопка у шапці галереї
+  const headerEl = document.getElementById('gsiButton');
+  if (headerEl) {
+    headerEl.innerHTML = '';
+    google.accounts.id.renderButton(headerEl,
+      { theme: 'filled_black', size: 'medium', text: 'signin_with', shape: 'pill' });
+  }
+  // Велика кнопка на логін-екрані
+  const loginEl = document.getElementById('gsiLoginButton');
+  if (loginEl) {
+    loginEl.innerHTML = '';
+    google.accounts.id.renderButton(loginEl,
+      { theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'pill', width: 320 });
+  }
 }
 
 window.addEventListener('load', () => {
@@ -887,43 +967,27 @@ function scheduleCloudPush(id) {
   }, 2000);
 }
 
-// --- Проекти ---
-const PROJECTS_KEY = 'scenario_projects_v1';     // {id: {name, content, dict, updated}}
-const ACTIVE_KEY = 'scenario_active_project_v1';
-const LEGACY_CONTENT_KEY = 'scenario_editor_content_uk';
-const LEGACY_DICT_KEY = 'scenario_editor_dict_uk';
+// --- Проекти (прив'язані до користувача) ---
+function projectsKey() { return currentUser ? `scenario_projects_${currentUser.sub}` : null; }
+function activeKey() { return currentUser ? `scenario_active_${currentUser.sub}` : null; }
 
 function loadProjects() {
-  try { return JSON.parse(localStorage.getItem(PROJECTS_KEY) || '{}'); }
+  const key = projectsKey();
+  if (!key) return {};
+  try { return JSON.parse(localStorage.getItem(key) || '{}'); }
   catch { return {}; }
 }
-function saveProjects(p) { localStorage.setItem(PROJECTS_KEY, JSON.stringify(p)); }
+function saveProjects(p) {
+  const key = projectsKey();
+  if (!key) return;
+  localStorage.setItem(key, JSON.stringify(p));
+}
 
 let projects = loadProjects();
-let activeId = localStorage.getItem(ACTIVE_KEY);
+let activeId = currentUser ? localStorage.getItem(activeKey()) : null;
+if (!activeId || !projects[activeId]) activeId = Object.keys(projects)[0] || null;
 
-// Міграція зі старого формату
-if (Object.keys(projects).length === 0) {
-  const legacyContent = localStorage.getItem(LEGACY_CONTENT_KEY);
-  const legacyDict = localStorage.getItem(LEGACY_DICT_KEY);
-  const id = 'p_' + Date.now();
-  projects[id] = {
-    name: 'Без назви',
-    content: legacyContent || '',
-    dict: legacyDict ? JSON.parse(legacyDict) : { characters: {}, locations: {}, phrases: {} },
-    updated: Date.now(),
-  };
-  activeId = id;
-  saveProjects(projects);
-  localStorage.setItem(ACTIVE_KEY, activeId);
-}
-
-if (!activeId || !projects[activeId]) {
-  activeId = Object.keys(projects)[0];
-  localStorage.setItem(ACTIVE_KEY, activeId);
-}
-
-let dict = projects[activeId].dict || { characters: {}, locations: {}, phrases: {} };
+let dict = (activeId && projects[activeId]?.dict) || { characters: {}, locations: {}, phrases: {} };
 
 function learnDict() {
   for (const b of editor.children) {
@@ -941,8 +1005,10 @@ function learnDict() {
       }
     }
   }
-  projects[activeId].dict = dict;
-  saveProjects(projects);
+  if (activeId && projects[activeId]) {
+    projects[activeId].dict = dict;
+    saveProjects(projects);
+  }
 }
 
 const DEFAULT_CONTENT = `
@@ -953,7 +1019,7 @@ const DEFAULT_CONTENT = `
 <div class="dialogue" data-type="dialogue" data-placeholder="Репліка героя...">Знову ллє...</div>
 `;
 
-editor.innerHTML = projects[activeId].content || DEFAULT_CONTENT;
+editor.innerHTML = (activeId && projects[activeId]?.content) || '';
 
 function ensureAttrs() {
   for (const b of editor.children) {
@@ -967,11 +1033,10 @@ function ensureAttrs() {
     b.setAttribute('data-placeholder', PLACEHOLDERS[type] || '');
   }
 }
-ensureAttrs();
-learnDict();
+if (activeId && projects[activeId]) { ensureAttrs(); learnDict(); }
 
 function save() {
-  if (!projects[activeId]) return;
+  if (!currentUser || !activeId || !projects[activeId]) return;
   projects[activeId].content = editor.innerHTML;
   projects[activeId].updated = Date.now();
   saveProjects(projects);
@@ -1115,7 +1180,7 @@ function renderProjects() {
       if (currentUser) cloudDeleteProject(id).catch(() => {});
       if (id === activeId) {
         activeId = null;
-        localStorage.removeItem(ACTIVE_KEY);
+        if (activeKey()) localStorage.removeItem(activeKey());
         editor.innerHTML = '';
         updateToggleLabel();
       }
@@ -1130,7 +1195,7 @@ function switchProject(id) {
   if (!projects[id]) return;
   if (activeId && projects[activeId]) save();
   activeId = id;
-  localStorage.setItem(ACTIVE_KEY, activeId);
+  if (activeKey()) localStorage.setItem(activeKey(), activeId);
   dict = projects[activeId].dict || { characters: {}, locations: {}, phrases: {} };
   editor.innerHTML = projects[activeId].content || DEFAULT_CONTENT;
   ensureAttrs();
@@ -1150,10 +1215,16 @@ document.getElementById('btnDeleteAll').addEventListener('click', async () => {
   if (!ok1) return;
   const ok2 = await dlgConfirm('Ви впевнені? Це незворотна дія.', { title: 'Остаточне підтвердження', okLabel: 'Видалити все', danger: true });
   if (!ok2) return;
+  // Видаляємо всі в клауді перед очищенням локально
+  if (currentUser) {
+    for (const id of Object.keys(projects)) {
+      cloudDeleteProject(id).catch(() => {});
+    }
+  }
   projects = {};
   activeId = null;
-  localStorage.removeItem(PROJECTS_KEY);
-  localStorage.removeItem(ACTIVE_KEY);
+  if (projectsKey()) localStorage.removeItem(projectsKey());
+  if (activeKey()) localStorage.removeItem(activeKey());
   editor.innerHTML = '';
   updateToggleLabel();
   renderProjects();
@@ -1228,8 +1299,9 @@ function createProject(name) {
 
 updateToggleLabel();
 
-// Початковий view: якщо нема активного проекту — галерея, інакше — редактор
-if (activeId && projects[activeId]) setView('editor');
+// Початковий view: без акаунту → логін; з акаунтом + активний проект → редактор; інакше → галерея
+if (!currentUser) setView('login');
+else if (activeId && projects[activeId]) setView('editor');
 else setView('projects');
 
 function getCurrentBlock() {
