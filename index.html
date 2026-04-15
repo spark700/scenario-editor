@@ -1736,12 +1736,19 @@ document.addEventListener('mousedown', (e) => {
 });
 
 // --- Block chip (швидка зміна типу абзацу) ---
-const blockChip = document.getElementById('blockChip');
-const chipMenu = document.getElementById('chipMenu');
 const FORMAT_ORDER = ['scene-heading', 'action', 'character', 'dialogue', 'parenthetical', 'transition'];
 const HOTKEY_LABEL = { 'scene-heading':'⌘1','action':'⌘2','character':'⌘3','dialogue':'⌘4','parenthetical':'⌘5','transition':'⌘6' };
 
+function getChipEls() {
+  return {
+    chip: document.getElementById('blockChip'),
+    menu: document.getElementById('chipMenu'),
+  };
+}
+
 function updateBlockChip() {
+  const { chip: blockChip, menu: chipMenu } = getChipEls();
+  if (!blockChip || !chipMenu) return;
   const block = getCurrentBlock();
   if (!block || document.body.getAttribute('data-view') !== 'editor') {
     blockChip.classList.remove('visible');
@@ -1764,12 +1771,16 @@ function updateBlockChip() {
 }
 
 function positionChipMenu() {
+  const { chip: blockChip, menu: chipMenu } = getChipEls();
+  if (!blockChip || !chipMenu) return;
   const rect = blockChip.getBoundingClientRect();
   chipMenu.style.left = (rect.left + window.scrollX) + 'px';
   chipMenu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
 }
 
 function renderChipMenu(currentType) {
+  const { menu: chipMenu } = getChipEls();
+  if (!chipMenu) return;
   chipMenu.innerHTML = '';
   for (const t of FORMAT_ORDER) {
     const opt = document.createElement('div');
@@ -1792,8 +1803,9 @@ function renderChipMenu(currentType) {
   }
 }
 
-blockChip.addEventListener('click', (e) => {
+document.getElementById('blockChip').addEventListener('click', (e) => {
   e.stopPropagation();
+  const { chip: blockChip, menu: chipMenu } = getChipEls();
   if (chipMenu.classList.contains('open')) {
     chipMenu.classList.remove('open');
     return;
@@ -1804,6 +1816,8 @@ blockChip.addEventListener('click', (e) => {
 });
 
 document.addEventListener('mousedown', (e) => {
+  const { chip: blockChip, menu: chipMenu } = getChipEls();
+  if (!chipMenu) return;
   if (!chipMenu.contains(e.target) && e.target !== blockChip) {
     chipMenu.classList.remove('open');
   }
