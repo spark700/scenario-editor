@@ -5,6 +5,7 @@
 <title>Редактор сценарію</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html-docx-js/0.3.1/html-docx.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -306,6 +307,36 @@
     margin: 0 0 12px;
   }
 
+  /* Блок користувача */
+  .user-block {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-right: 10px;
+  }
+  .user-block img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.2);
+  }
+  .user-block .user-name {
+    font-size: 13px;
+    color: #bbb;
+  }
+  .user-block .signout {
+    background: none;
+    border: 1px solid #555;
+    color: #aaa;
+    padding: 6px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+  }
+  .user-block .signout:hover { color: #fff; border-color: #888; }
+  #gsiButton { min-height: 40px; }
+
   /* Кастомні діалоги */
   .dlg-backdrop {
     position: fixed;
@@ -449,6 +480,12 @@
   <div class="gallery-header">
     <h1>Мої сценарії<span class="count" id="projectsCount"></span></h1>
     <div class="gallery-actions">
+      <div class="user-block" id="userBlock" style="display:none">
+        <img id="userAvatar" alt="">
+        <span class="user-name" id="userName"></span>
+        <button class="signout" id="btnSignOut">Вийти</button>
+      </div>
+      <div id="gsiButton"></div>
       <button id="btnImport">📥 Імпорт</button>
       <button id="btnExportAll">📤 Експорт усіх</button>
       <button class="danger" id="btnDeleteAll">🗑 Видалити все</button>
@@ -683,6 +720,82 @@ const PARENTHETICALS = [
   '(пауза)', '(убік)', '(з досадою)', '(здивовано)', '(сердито)',
   '(ніжно)', '(різко)', '(нервово)', '(холодно)',
 ];
+
+// --- Google Sign-In ---
+const GOOGLE_CLIENT_ID = '512845231835-580pobin00t2t71m25i5rdsci6hjhuvv.apps.googleusercontent.com';
+const USER_KEY = 'scenario_google_user';
+
+function decodeJwt(token) {
+  const base64Url = token.split('.')[1];
+  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+  const json = decodeURIComponent(atob(base64).split('').map(c =>
+    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+  ).join(''));
+  return JSON.parse(json);
+}
+
+let currentUser = null;
+try { currentUser = JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch {}
+
+function updateUserUi() {
+  const block = document.getElementById('userBlock');
+  const btn = document.getElementById('gsiButton');
+  if (currentUser) {
+    block.style.display = 'flex';
+    btn.style.display = 'none';
+    document.getElementById('userAvatar').src = currentUser.picture || '';
+    document.getElementById('userName').textContent = currentUser.name || currentUser.email || '';
+  } else {
+    block.style.display = 'none';
+    btn.style.display = '';
+  }
+}
+
+function handleGoogleCredential(response) {
+  const data = decodeJwt(response.credential);
+  currentUser = {
+    sub: data.sub,
+    email: data.email,
+    name: data.name,
+    picture: data.picture,
+    token: response.credential,
+  };
+  localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+  updateUserUi();
+}
+
+function signOut() {
+  currentUser = null;
+  localStorage.removeItem(USER_KEY);
+  if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
+  updateUserUi();
+  renderGsiButton();
+}
+
+function renderGsiButton() {
+  if (!window.google?.accounts?.id) return;
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    auto_select: false,
+  });
+  google.accounts.id.renderButton(
+    document.getElementById('gsiButton'),
+    { theme: 'filled_black', size: 'medium', text: 'signin_with', shape: 'pill' }
+  );
+}
+
+window.addEventListener('load', () => {
+  const tryInit = () => {
+    if (window.google?.accounts?.id) {
+      renderGsiButton();
+      updateUserUi();
+    } else setTimeout(tryInit, 200);
+  };
+  tryInit();
+});
+
+document.getElementById('btnSignOut').addEventListener('click', signOut);
 
 // --- Проекти ---
 const PROJECTS_KEY = 'scenario_projects_v1';     // {id: {name, content, dict, updated}}
