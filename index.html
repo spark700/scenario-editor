@@ -511,14 +511,12 @@
 
   .editor div[data-type] {
     min-height: 1.6em;
-    border-left: 3px solid transparent;
-    padding-left: 8px;
-    margin-left: -11px;
-    transition: border-color .12s, background-color .12s;
+    transition: background-color .12s, box-shadow .12s;
+    border-radius: 2px;
   }
   .editor div[data-type].is-active-block {
-    border-left-color: #88b065;
-    background-color: rgba(136, 176, 101, .06);
+    background-color: rgba(136, 176, 101, .08);
+    box-shadow: -3px 0 0 #88b065;
   }
   .editor .scene-heading { text-transform: uppercase; font-weight: bold; margin: 24px 0 12px; }
   .editor .action { margin: 12px 0; }
