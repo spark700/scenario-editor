@@ -723,6 +723,7 @@ const PARENTHETICALS = [
 
 // --- Google Sign-In ---
 const GOOGLE_CLIENT_ID = '512845231835-580pobin00t2t71m25i5rdsci6hjhuvv.apps.googleusercontent.com';
+const API_BASE = 'https://scenario-editor-api.contora.workers.dev';
 const USER_KEY = 'scenario_google_user';
 
 function decodeJwt(token) {
@@ -762,6 +763,8 @@ function handleGoogleCredential(response) {
   };
   localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
   updateUserUi();
+  // Синхронізуємо при вході
+  syncFromCloud();
 }
 
 function signOut() {
@@ -790,12 +793,99 @@ window.addEventListener('load', () => {
     if (window.google?.accounts?.id) {
       renderGsiButton();
       updateUserUi();
+      if (currentUser) syncFromCloud();
     } else setTimeout(tryInit, 200);
   };
   tryInit();
 });
 
 document.getElementById('btnSignOut').addEventListener('click', signOut);
+
+// --- Cloud sync ---
+async function apiFetch(path, options = {}) {
+  if (!currentUser?.token) throw new Error('not_signed_in');
+  const res = await fetch(API_BASE + path, {
+    ...options,
+    headers: {
+      'Authorization': 'Bearer ' + currentUser.token,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  if (res.status === 401) {
+    signOut();
+    throw new Error('unauthorized');
+  }
+  if (!res.ok) throw new Error('api_error_' + res.status);
+  return res.json();
+}
+
+async function cloudListProjects() {
+  const { projects } = await apiFetch('/projects');
+  return projects;
+}
+async function cloudGetProject(id) {
+  return apiFetch('/projects/' + id);
+}
+async function cloudSaveProject(id, project) {
+  return apiFetch('/projects/' + id, {
+    method: 'PUT',
+    body: JSON.stringify(project),
+  });
+}
+async function cloudDeleteProject(id) {
+  return apiFetch('/projects/' + id, { method: 'DELETE' });
+}
+
+// Синхронізація: при логіні — зливаємо local та cloud
+let syncInProgress = false;
+async function syncFromCloud() {
+  if (!currentUser || syncInProgress) return;
+  syncInProgress = true;
+  try {
+    const remoteList = await cloudListProjects();
+    // Завантажуємо нові/оновлені з клауду
+    for (const [id, meta] of Object.entries(remoteList)) {
+      const local = projects[id];
+      if (!local || (meta.updated || 0) > (local.updated || 0)) {
+        try {
+          const full = await cloudGetProject(id);
+          projects[id] = {
+            name: full.name,
+            content: full.content,
+            dict: full.dict || { characters: {}, locations: {}, phrases: {} },
+            updated: full.updated,
+          };
+        } catch (e) { console.warn('fetch fail', id, e); }
+      }
+    }
+    // Пушимо локальні що новіші
+    for (const [id, p] of Object.entries(projects)) {
+      const remote = remoteList[id];
+      if (!remote || (p.updated || 0) > (remote.updated || 0)) {
+        try {
+          await cloudSaveProject(id, p);
+        } catch (e) { console.warn('push fail', id, e); }
+      }
+    }
+    saveProjects(projects);
+    if (document.body.getAttribute('data-view') === 'projects') renderProjects();
+  } catch (e) {
+    console.warn('sync error', e);
+  } finally {
+    syncInProgress = false;
+  }
+}
+
+// Дебаунс пуш у клауд при зміні
+let pushTimer = null;
+function scheduleCloudPush(id) {
+  if (!currentUser || !projects[id]) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
+    cloudSaveProject(id, projects[id]).catch(e => console.warn('push err', e));
+  }, 2000);
+}
 
 // --- Проекти ---
 const PROJECTS_KEY = 'scenario_projects_v1';     // {id: {name, content, dict, updated}}
@@ -885,6 +975,7 @@ function save() {
   projects[activeId].content = editor.innerHTML;
   projects[activeId].updated = Date.now();
   saveProjects(projects);
+  scheduleCloudPush(activeId);
 }
 
 // --- UI проектів ---
@@ -1021,6 +1112,7 @@ function renderProjects() {
       if (!ok) return;
       delete projects[id];
       saveProjects(projects);
+      if (currentUser) cloudDeleteProject(id).catch(() => {});
       if (id === activeId) {
         activeId = null;
         localStorage.removeItem(ACTIVE_KEY);

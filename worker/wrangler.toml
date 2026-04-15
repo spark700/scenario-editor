@@ -1,0 +1,11 @@
+name = "scenario-editor-api"
+main = "src/index.js"
+compatibility_date = "2024-10-01"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "scenario-editor"
+
+[vars]
+GOOGLE_CLIENT_ID = "512845231835-580pobin00t2t71m25i5rdsci6hjhuvv.apps.googleusercontent.com"
+ALLOWED_ORIGINS = "https://spark700.github.io,http://localhost:8086"
