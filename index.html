@@ -524,6 +524,65 @@
     font-style: italic;
     pointer-events: none;
   }
+
+  /* Чіп формату біля активного блока */
+  .block-chip {
+    position: absolute;
+    z-index: 50;
+    background: #1f1f1f;
+    color: #e0e0e0;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,.4);
+    user-select: none;
+    white-space: nowrap;
+    transition: opacity .12s, transform .12s;
+    opacity: 0;
+    transform: translateX(-4px);
+    pointer-events: none;
+  }
+  .block-chip.visible {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  .block-chip:hover { background: #2a2a2a; border-color: #88b065; color: #fff; }
+  .block-chip::after { content: " ▾"; color: #88b065; }
+
+  .chip-menu {
+    position: absolute;
+    z-index: 51;
+    background: #1f1f1f;
+    border: 1px solid #555;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    min-width: 180px;
+    overflow: hidden;
+    display: none;
+  }
+  .chip-menu.open { display: block; }
+  .chip-menu .opt {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 14px;
+    color: #e0e0e0;
+    cursor: pointer;
+    font-size: 12px;
+    border-bottom: 1px solid #2c2c2c;
+  }
+  .chip-menu .opt:last-child { border-bottom: none; }
+  .chip-menu .opt:hover { background: #2a2a2a; }
+  .chip-menu .opt.active { background: rgba(107,142,78,.2); color: #88b065; }
+  .chip-menu .opt .hot {
+    font-size: 9px;
+    color: #777;
+    margin-left: 12px;
+  }
 </style>
 </head>
 <body>
@@ -584,6 +643,9 @@
 </div>
 
 <div id="suggestions" class="suggestions" style="display:none"></div>
+
+<div id="blockChip" class="block-chip"></div>
+<div id="chipMenu" class="chip-menu"></div>
 
 <div class="format-hint">Формат: <b id="hint">—</b><span class="tab">Tab — автопідказка</span></div>
 
@@ -1153,6 +1215,7 @@ const countEl = document.getElementById('projectsCount');
 function setView(name) {
   document.body.setAttribute('data-view', name);
   if (name === 'projects') renderProjects();
+  if (typeof updateBlockChip === 'function') updateBlockChip();
 }
 
 function currentName() {
@@ -1657,10 +1720,88 @@ editor.addEventListener('input', () => {
   else hideSuggestions();
 });
 
-document.addEventListener('selectionchange', updateHint);
+document.addEventListener('selectionchange', () => { updateHint(); updateBlockChip(); });
 document.addEventListener('mousedown', (e) => {
   if (!suggBox.contains(e.target)) hideSuggestions();
 });
+
+// --- Block chip (швидка зміна типу абзацу) ---
+const blockChip = document.getElementById('blockChip');
+const chipMenu = document.getElementById('chipMenu');
+const FORMAT_ORDER = ['scene-heading', 'action', 'character', 'dialogue', 'parenthetical', 'transition'];
+const HOTKEY_LABEL = { 'scene-heading':'⌘1','action':'⌘2','character':'⌘3','dialogue':'⌘4','parenthetical':'⌘5','transition':'⌘6' };
+
+function updateBlockChip() {
+  const block = getCurrentBlock();
+  if (!block || document.body.getAttribute('data-view') !== 'editor') {
+    blockChip.classList.remove('visible');
+    chipMenu.classList.remove('open');
+    return;
+  }
+  const type = block.getAttribute('data-type') || 'action';
+  blockChip.textContent = LABELS[type] || type;
+  blockChip.dataset.type = type;
+  // Позиціонуємо ліворуч від блока
+  const rect = block.getBoundingClientRect();
+  const editorRect = editor.getBoundingClientRect();
+  const left = editorRect.left + window.scrollX - 4;
+  const top = rect.top + window.scrollY + (rect.height / 2) - 12;
+  blockChip.style.left = (left - blockChip.offsetWidth) + 'px';
+  blockChip.style.top = top + 'px';
+  blockChip.classList.add('visible');
+  // Якщо меню відкрите — переставимо
+  if (chipMenu.classList.contains('open')) positionChipMenu();
+}
+
+function positionChipMenu() {
+  const rect = blockChip.getBoundingClientRect();
+  chipMenu.style.left = (rect.left + window.scrollX) + 'px';
+  chipMenu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+}
+
+function renderChipMenu(currentType) {
+  chipMenu.innerHTML = '';
+  for (const t of FORMAT_ORDER) {
+    const opt = document.createElement('div');
+    opt.className = 'opt' + (t === currentType ? ' active' : '');
+    opt.innerHTML = `<span></span><span class="hot"></span>`;
+    opt.children[0].textContent = LABELS[t];
+    opt.children[1].textContent = HOTKEY_LABEL[t] || '';
+    opt.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const block = getCurrentBlock();
+      if (block) {
+        setBlockType(block, t);
+        save();
+        updateHint();
+        updateBlockChip();
+      }
+      chipMenu.classList.remove('open');
+    });
+    chipMenu.appendChild(opt);
+  }
+}
+
+blockChip.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (chipMenu.classList.contains('open')) {
+    chipMenu.classList.remove('open');
+    return;
+  }
+  renderChipMenu(blockChip.dataset.type);
+  positionChipMenu();
+  chipMenu.classList.add('open');
+});
+
+document.addEventListener('mousedown', (e) => {
+  if (!chipMenu.contains(e.target) && e.target !== blockChip) {
+    chipMenu.classList.remove('open');
+  }
+});
+
+// При прокрутці/ресайзі — переоблачуємо
+window.addEventListener('scroll', () => updateBlockChip(), true);
+window.addEventListener('resize', () => updateBlockChip());
 
 const HOTKEYS = { '1':'scene-heading','2':'action','3':'character','4':'dialogue','5':'parenthetical','6':'transition' };
 document.addEventListener('keydown', (e) => {
