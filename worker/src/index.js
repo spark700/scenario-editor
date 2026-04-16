@@ -179,6 +179,22 @@ OTHER RULES:
 
 Return ONLY valid JSON array. No markdown fences, no explanation.`;
 
+function splitTextIntoChunks(text, maxSize) {
+  if (text.length <= maxSize) return [text];
+  const chunks = [];
+  const paragraphs = text.split(/\n\n+/);
+  let current = '';
+  for (const para of paragraphs) {
+    if (current.length + para.length + 2 > maxSize && current.length > 0) {
+      chunks.push(current.trim());
+      current = '';
+    }
+    current += (current ? '\n\n' : '') + para;
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.length ? chunks : [text.substring(0, maxSize)];
+}
+
 async function handleReformat(request, env, cors) {
   const auth = request.headers.get('Authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
@@ -203,44 +219,56 @@ async function handleReformat(request, env, cors) {
   if (!grokKey) return json({ error: 'AI not configured' }, 500, cors);
 
   try {
-    const aiRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + grokKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: REFORMAT_SYSTEM },
-          { role: 'user', content: text },
-        ],
-        temperature: 0.1,
-        max_tokens: 16000,
-      }),
-    });
+    // Розбиваємо на чанки по ~3000 символів (щоб вкластись в ліміт Groq free tier)
+    const CHUNK_SIZE = 3000;
+    const chunks = splitTextIntoChunks(text, CHUNK_SIZE);
+    let allBlocks = [];
 
-    if (!aiRes.ok) {
-      const errBody = await aiRes.text();
-      return json({ error: 'ai_error', status: aiRes.status, detail: errBody.substring(0, 300) }, 502, cors);
+    for (const chunk of chunks) {
+      const aiRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + grokKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: REFORMAT_SYSTEM },
+            { role: 'user', content: chunk },
+          ],
+          temperature: 0.1,
+          max_tokens: 8000,
+        }),
+      });
+
+      if (!aiRes.ok) {
+        const errBody = await aiRes.text();
+        return json({ error: 'ai_error', status: aiRes.status, detail: errBody.substring(0, 300) }, 502, cors);
+      }
+
+      const aiData = await aiRes.json();
+      const content = aiData.choices?.[0]?.message?.content || '';
+
+      let blocks;
+      try {
+        const jsonStr = content.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
+        blocks = JSON.parse(jsonStr);
+      } catch (e) {
+        return json({ error: 'ai_parse_error', raw: content.substring(0, 500) }, 502, cors);
+      }
+
+      if (!Array.isArray(blocks)) {
+        return json({ error: 'ai_bad_format', raw: content.substring(0, 500) }, 502, cors);
+      }
+
+      allBlocks = allBlocks.concat(blocks);
+
+      // Пауза між чанками щоб не перевищити rate limit
+      if (chunks.length > 1) await new Promise(r => setTimeout(r, 1500));
     }
 
-    const aiData = await aiRes.json();
-    const content = aiData.choices?.[0]?.message?.content || '';
-
-    // Витягаємо JSON з відповіді (може бути обгорнутий в ``` )
-    let blocks;
-    try {
-      const jsonStr = content.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
-      blocks = JSON.parse(jsonStr);
-    } catch (e) {
-      return json({ error: 'ai_parse_error', raw: content.substring(0, 500) }, 502, cors);
-    }
-
-    if (!Array.isArray(blocks)) {
-      return json({ error: 'ai_bad_format', raw: content.substring(0, 500) }, 502, cors);
-    }
-
+    const blocks = allBlocks;
     const validTypes = new Set(['scene-heading', 'action', 'character', 'dialogue', 'parenthetical', 'transition']);
     const cleaned = blocks
       .filter(b => b && typeof b.text === 'string' && b.text.trim())
