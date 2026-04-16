@@ -2122,8 +2122,16 @@ const topBackBtn = document.getElementById('topBackBtn');
 
 topBackBtn.addEventListener('click', () => { save(); setView('projects'); });
 
-document.getElementById('aiFmtBtn').addEventListener('click', () => {
-  aiReformatContent();
+document.getElementById('aiFmtBtn').addEventListener('click', async () => {
+  const choice = await dlgChoice(
+    'AI інструменти',
+    [
+      { label: 'Скасувати', value: 'cancel' },
+      { label: 'Форматування сценарію', value: 'reformat', variant: 'primary' },
+    ],
+    { title: 'AI' }
+  );
+  if (choice === 'reformat') aiReformatContent();
 });
 
 topFileMenuBtn.addEventListener('click', (e) => {
