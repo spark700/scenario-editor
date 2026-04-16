@@ -867,10 +867,10 @@ const NEXT_AFTER = {
 // Tab-цикл: на порожньому блоці Tab перемикає між альтернативними типами
 const TAB_CYCLE = {
   'dialogue': 'parenthetical',   // після героя: репліка ←Tab→ ремарка
-  'parenthetical': 'dialogue',   // ремарка ←Tab→ репліка
   'character': 'action',         // після репліки: герой ←Tab→ опис
   'action': 'character',         // опис ←Tab→ герой
   'cast-list': 'action',         // ролі ←Tab→ опис
+  // parenthetical — без циклу, після ремарки завжди репліка
 };
 
 const SCENE_PREFIXES = [
