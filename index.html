@@ -1207,8 +1207,10 @@ function baseCharacterName(name) {
 function cleanCharacterDict() {
   const cleaned = {};
   for (const [name, count] of Object.entries(dict.characters)) {
+    // Пропускаємо записи що виглядають як cast-list (кома + кілька імен)
+    if (name.includes(',')) continue;
     const base = baseCharacterName(name);
-    if (base) cleaned[base] = (cleaned[base] || 0) + count;
+    if (base && !base.includes(',')) cleaned[base] = (cleaned[base] || 0) + count;
   }
   dict.characters = cleaned;
 }
@@ -1221,7 +1223,7 @@ function learnDict() {
     if (!text) continue;
     if (type === 'character') {
       const base = baseCharacterName(text);
-      if (base) dict.characters[base] = (dict.characters[base] || 0) + 1;
+      if (base && !base.includes(',')) dict.characters[base] = (dict.characters[base] || 0) + 1;
     } else if (type === 'scene-heading') {
       const m = text.match(/^(ІНТ\.|НАТ\.|ЕКСТ\.|ІНТ\.\/НАТ\.)\s*([^—–-]+)/i);
       if (m) {
