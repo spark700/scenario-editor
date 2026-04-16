@@ -1802,7 +1802,8 @@ async function aiReformatContent() {
     });
     const data = await res.json();
     if (!res.ok || !data.blocks) {
-      throw new Error(data.error || data.detail || 'AI error');
+      const detail = data.detail || '';
+      throw new Error((data.error || 'AI error') + (detail ? '\n' + detail : ''));
     }
 
     editor.innerHTML = '';
