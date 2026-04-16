@@ -1609,8 +1609,15 @@ function showSuggestions(items, block) {
   renderSuggestions();
   const rect = block.getBoundingClientRect();
   suggBox.style.left = (rect.left + window.scrollX) + 'px';
-  suggBox.style.top = (rect.bottom + window.scrollY + 4) + 'px';
   suggBox.style.display = 'block';
+  // Перевіряємо чи вистачає місця знизу
+  const boxH = suggBox.offsetHeight;
+  const spaceBelow = window.innerHeight - rect.bottom;
+  if (spaceBelow < boxH + 8 && rect.top > boxH + 8) {
+    suggBox.style.top = (rect.top + window.scrollY - boxH - 4) + 'px';
+  } else {
+    suggBox.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+  }
 }
 
 function renderSuggestions() {
@@ -1705,11 +1712,17 @@ function buildSuggestions(block) {
     if (names.some(([n]) => n === typed)) return items;
 
     if (hasOpenParen) {
-      // Після відкритої дужки — підказки анотацій
       const nameBeforeParen = typed.replace(/\s*\(\s*$/, '');
-      const ANNS = ['ЗК', 'ПЗ', 'ПРОД.', 'V.O.', 'O.S.', "CONT'D"];
-      for (const ann of ANNS) {
-        items.push({ value: nameBeforeParen + ' (' + ann + ')', label: '(' + ann + ')', kind: 'анотація' });
+      const ANNS = [
+        ['ЗК', 'закадровий голос'],
+        ['ПЗ', 'позакадровий'],
+        ['ПРОД.', 'продовження'],
+        ['V.O.', 'voice over'],
+        ['O.S.', 'off screen'],
+        ["CONT'D", 'continued'],
+      ];
+      for (const [ann, desc] of ANNS) {
+        items.push({ value: nameBeforeParen + ' (' + ann + ')', label: '(' + ann + ')', kind: desc });
       }
     } else {
       // Тільки базові імена
