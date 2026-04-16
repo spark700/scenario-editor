@@ -194,14 +194,14 @@ async function handleReformat(request, env, cors) {
   if (!grokKey) return json({ error: 'AI not configured' }, 500, cors);
 
   try {
-    const aiRes = await fetch('https://api.x.ai/v1/chat/completions', {
+    const aiRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + grokKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'grok-3-mini-fast',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: REFORMAT_SYSTEM },
           { role: 'user', content: text },
