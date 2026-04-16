@@ -55,6 +55,11 @@ export default {
     const url = new URL(request.url);
     const parts = url.pathname.split('/').filter(Boolean);
 
+    // --- AI Reformat ---
+    if (parts[0] === 'reformat' && request.method === 'POST') {
+      return handleReformat(request, env, cors);
+    }
+
     if (parts[0] !== 'projects') {
       return json({ error: 'not_found' }, 404, cors);
     }
@@ -139,3 +144,104 @@ export default {
     return json({ error: 'method_not_allowed' }, 405, cors);
   },
 };
+
+const REFORMAT_SYSTEM = `You are a professional screenplay formatter. You receive raw text that was copied from a document and needs to be split into screenplay blocks.
+
+Analyze the text and return a JSON array of blocks. Each block has:
+- "type": one of "scene-heading", "action", "character", "dialogue", "parenthetical", "transition"
+- "text": the cleaned text content
+
+Rules:
+- "scene-heading": location and time lines like "INT. ROOM - DAY", "EXT. STREET - NIGHT" or their Ukrainian equivalents "ІНТ.", "НАТ.", "ЕКСТ."
+- "character": character name before their dialogue. Usually short, often UPPERCASE. Can include age like "МАРК(22)"
+- "dialogue": what a character says (lines AFTER a character name)
+- "parenthetical": stage directions in parentheses within dialogue, like "(тихо)", "(шепотом)"
+- "action": scene description, stage directions, what happens visually
+- "transition": CUT TO, FADE OUT, ЗАТЕМНЕННЯ, ПЕРЕХІД, etc.
+
+Key context clues:
+- After a character name, the next non-empty line(s) are usually dialogue
+- Short lines in caps/title case before dialogue = character names
+- Lines describing what happens = action
+- B-roll descriptions = action
+- Title page elements (title, author) = action
+- "(ЗК)" or "(V.O.)" after name = still character type, keep the annotation
+
+Return ONLY valid JSON array, no markdown, no explanation.
+Example: [{"type":"scene-heading","text":"INT. ROOM - NIGHT"},{"type":"character","text":"JOHN"},{"type":"dialogue","text":"Hello there."}]`;
+
+async function handleReformat(request, env, cors) {
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return json({ error: 'unauthorized' }, 401, cors);
+
+  try {
+    await verifyToken(token, env.GOOGLE_CLIENT_ID);
+  } catch (e) {
+    return json({ error: 'invalid_token' }, 401, cors);
+  }
+
+  const body = await request.json();
+  const text = body?.text;
+  if (!text || typeof text !== 'string') {
+    return json({ error: 'missing text' }, 400, cors);
+  }
+  if (text.length > 50000) {
+    return json({ error: 'text too long (max 50000)' }, 400, cors);
+  }
+
+  const grokKey = env.GROK_API_KEY;
+  if (!grokKey) return json({ error: 'AI not configured' }, 500, cors);
+
+  try {
+    const aiRes = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + grokKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'grok-3-mini-fast',
+        messages: [
+          { role: 'system', content: REFORMAT_SYSTEM },
+          { role: 'user', content: text },
+        ],
+        temperature: 0.1,
+        max_tokens: 16000,
+      }),
+    });
+
+    if (!aiRes.ok) {
+      const errBody = await aiRes.text();
+      return json({ error: 'ai_error', status: aiRes.status, detail: errBody.substring(0, 300) }, 502, cors);
+    }
+
+    const aiData = await aiRes.json();
+    const content = aiData.choices?.[0]?.message?.content || '';
+
+    // Витягаємо JSON з відповіді (може бути обгорнутий в ``` )
+    let blocks;
+    try {
+      const jsonStr = content.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
+      blocks = JSON.parse(jsonStr);
+    } catch (e) {
+      return json({ error: 'ai_parse_error', raw: content.substring(0, 500) }, 502, cors);
+    }
+
+    if (!Array.isArray(blocks)) {
+      return json({ error: 'ai_bad_format', raw: content.substring(0, 500) }, 502, cors);
+    }
+
+    const validTypes = new Set(['scene-heading', 'action', 'character', 'dialogue', 'parenthetical', 'transition']);
+    const cleaned = blocks
+      .filter(b => b && typeof b.text === 'string' && b.text.trim())
+      .map(b => ({
+        type: validTypes.has(b.type) ? b.type : 'action',
+        text: b.text.trim(),
+      }));
+
+    return json({ blocks: cleaned }, 200, cors);
+  } catch (e) {
+    return json({ error: 'ai_fetch_error', detail: e.message }, 502, cors);
+  }
+}

@@ -1760,12 +1760,71 @@ function reformatEditorContent() {
 }
 
 document.getElementById('btnReformat').addEventListener('click', async () => {
-  const ok = await dlgConfirm(
-    'Розбити поточний документ на окремі абзаци за переносами рядків?\nТипи (МІСЦЕ/ЧАС, ГЕРОЙ, ремарка, ПЕРЕХІД) визначатимуться автоматично.',
-    { title: 'Розбити на абзаци', okLabel: 'Розбити' }
+  const choice = await dlgChoice(
+    'Як розбити поточний документ на абзаци?',
+    [
+      { label: 'Скасувати', value: 'cancel' },
+      { label: 'Авто (за рядками)', value: 'auto' },
+      { label: 'AI (Grok)', value: 'ai', variant: 'primary' },
+    ],
+    { title: 'Розбити на абзаци' }
   );
-  if (ok) reformatEditorContent();
+  if (choice === 'auto') reformatEditorContent();
+  else if (choice === 'ai') aiReformatContent();
 });
+
+async function aiReformatContent() {
+  if (!currentUser?.token) { await dlgAlert('Увійдіть щоб використовувати AI', 'Помилка'); return; }
+  const lines = [];
+  for (const child of editor.children) {
+    if (child.nodeType !== 1) continue;
+    const html = child.innerHTML;
+    const text = html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
+    const decoded = (() => { const d = document.createElement('div'); d.innerHTML = text; return d.textContent; })();
+    lines.push(...decoded.split(/\n/));
+  }
+  const fullText = lines.join('\n');
+  if (!fullText.trim()) { await dlgAlert('Документ порожній', 'Помилка'); return; }
+
+  const btn = document.getElementById('btnReformat');
+  const origText = btn.textContent;
+  btn.textContent = '  AI аналізує...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(API_BASE + '/reformat', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + currentUser.token,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text: fullText }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.blocks) {
+      throw new Error(data.error || data.detail || 'AI error');
+    }
+
+    editor.innerHTML = '';
+    for (const b of data.blocks) {
+      const div = document.createElement('div');
+      div.className = b.type;
+      div.setAttribute('data-type', b.type);
+      div.setAttribute('data-placeholder', PLACEHOLDERS[b.type] || '');
+      div.textContent = b.text;
+      editor.appendChild(div);
+    }
+    save();
+    updateHint();
+    if (typeof updateBlockChip === 'function') updateBlockChip();
+  } catch (e) {
+    console.error('AI reformat error', e);
+    await dlgAlert('Помилка AI: ' + e.message, 'Помилка');
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
 
 // --- Розумна вставка з буфера ---
 editor.addEventListener('paste', (e) => {
