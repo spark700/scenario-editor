@@ -1323,7 +1323,7 @@ function ensureAttrs() {
   }
 }
 cleanCharacterDict();
-if (activeId && projects[activeId]) { ensureAttrs(); learnDict(); }
+if (activeId && projects[activeId]) { ensureAttrs(); styleAllAnnotations(); learnDict(); }
 
 function save() {
   if (!activeId || !projects[activeId]) return;
@@ -1506,6 +1506,7 @@ function switchProject(id) {
   dict = projects[activeId].dict || { characters: {}, locations: {}, phrases: {} };
   editor.innerHTML = projects[activeId].content || EMPTY_CONTENT;
   ensureAttrs();
+  if (typeof styleAllAnnotations === 'function') styleAllAnnotations();
   if (typeof hideSuggestions === 'function') hideSuggestions();
   updateToggleLabel();
   updateHint();
@@ -1877,6 +1878,7 @@ function reformatEditorContent() {
     div.textContent = b.text;
     editor.appendChild(div);
   }
+  styleAllAnnotations();
   save();
   updateHint();
   updateBlockChip();
@@ -1924,6 +1926,7 @@ async function aiReformatContent() {
       div.textContent = b.text;
       editor.appendChild(div);
     }
+    styleAllAnnotations();
     save();
     updateHint();
     if (typeof updateBlockChip === 'function') updateBlockChip();
@@ -2062,6 +2065,20 @@ function normalizeBlock(block) {
 
   if (changed) {
     block.textContent = text;
+  }
+}
+
+// Стилізація анотацій у всіх character-блоках (для вже існуючого тексту)
+function styleAllAnnotations() {
+  for (const block of editor.querySelectorAll('[data-type="character"]')) {
+    const text = block.textContent.trim();
+    if (!text) continue;
+    // Вже має span.ann — пропускаємо
+    if (block.querySelector('.ann')) continue;
+    const m = text.match(/^(.+?)(\s*\([А-ЯЁІЇЄҐA-Zа-яa-z'.]+\)\s*)$/);
+    if (m) {
+      block.innerHTML = m[1] + '<span class="ann">' + m[2].trim() + '</span>';
+    }
   }
 }
 
