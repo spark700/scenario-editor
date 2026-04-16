@@ -1210,9 +1210,13 @@ if (activeId && projects[activeId]) { ensureAttrs(); learnDict(); }
 
 function save() {
   if (!activeId || !projects[activeId]) return;
-  projects[activeId].content = editor.innerHTML;
+  // Не перетираємо контент якщо ми не на view редактора
+  if (document.body.getAttribute('data-view') !== 'editor') return;
+  // Не перетираємо якщо editor порожній а проект має контент (захист від випадкового стирання)
+  const html = editor.innerHTML;
+  if (!html.trim() && projects[activeId].content && projects[activeId].content.trim()) return;
+  projects[activeId].content = html;
   projects[activeId].updated = Date.now();
-  // Завжди пишемо локально, навіть якщо user вилогувався (#9)
   saveProjects(projects);
   if (currentUser) scheduleCloudPush(activeId);
 }
@@ -1375,11 +1379,12 @@ function renderProjects() {
 
 function switchProject(id) {
   if (!projects[id]) return;
-  if (activeId && projects[activeId]) save();
+  // Зберігаємо попередній проект ТІЛЬКИ якщо ми в редакторі
+  if (document.body.getAttribute('data-view') === 'editor' && activeId && projects[activeId]) save();
   activeId = id;
   if (activeKey()) localStorage.setItem(activeKey(), activeId);
   dict = projects[activeId].dict || { characters: {}, locations: {}, phrases: {} };
-  editor.innerHTML = projects[activeId].content || DEFAULT_CONTENT;
+  editor.innerHTML = projects[activeId].content || EMPTY_CONTENT;
   ensureAttrs();
   if (typeof hideSuggestions === 'function') hideSuggestions();
   updateToggleLabel();
