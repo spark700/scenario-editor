@@ -540,64 +540,47 @@
     pointer-events: none;
   }
 
-  /* Чіп формату біля активного блока */
-  .block-chip {
-    position: absolute;
-    z-index: 50;
-    background: #1f1f1f;
-    color: #e0e0e0;
-    border: 1px solid #555;
-    border-radius: 6px;
-    padding: 4px 10px;
-    font-family: "Courier New", monospace;
+  /* Правий сайдбар — додаткові типи */
+  .side-panel {
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    background: rgba(30, 30, 30, 0.88);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.4);
+    z-index: 99;
+  }
+  .side-panel button {
+    padding: 6px 10px;
+    border: 1px solid #444;
+    background: #333;
+    color: #bbb;
+    font-family: inherit;
     font-size: 11px;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,.4);
-    user-select: none;
+    border-radius: 4px;
     white-space: nowrap;
-    transition: opacity .12s, transform .12s;
-    opacity: 0;
-    transform: translateX(-4px);
-    pointer-events: none;
+    text-align: left;
   }
-  .block-chip.visible {
-    opacity: 1;
-    transform: translateX(0);
-    pointer-events: auto;
-  }
-  .block-chip:hover { background: #2a2a2a; border-color: #88b065; color: #fff; }
-  .block-chip::after { content: " ▾"; color: #88b065; }
-
-  .chip-menu {
-    position: absolute;
-    z-index: 51;
-    background: #1f1f1f;
-    border: 1px solid #555;
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,.5);
-    min-width: 180px;
-    overflow: hidden;
-    display: none;
-  }
-  .chip-menu.open { display: block; }
-  .chip-menu .opt {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 9px 14px;
-    color: #e0e0e0;
-    cursor: pointer;
-    font-size: 12px;
-    border-bottom: 1px solid #2c2c2c;
-  }
-  .chip-menu .opt:last-child { border-bottom: none; }
-  .chip-menu .opt:hover { background: #2a2a2a; }
-  .chip-menu .opt.active { background: rgba(107,142,78,.2); color: #88b065; }
-  .chip-menu .opt .hot {
+  .side-panel button:hover { background: #444; color: #fff; border-color: #666; }
+  .side-panel .active { background: #6b8e4e; border-color: #88b065; color: #fff; }
+  .side-panel .label {
     font-size: 9px;
-    color: #777;
-    margin-left: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 4px 2px 2px;
   }
+  body[data-view="projects"] .side-panel,
+  body[data-view="login"] .side-panel { display: none !important; }
+
 </style>
 </head>
 <body>
@@ -645,21 +628,14 @@
 <div class="dlg-backdrop" id="dlgBackdrop"><div class="dlg" id="dlgBox"></div></div>
 
 <div class="floating-toolbar" id="toolbar">
-  <button data-fmt="scene-heading" title="Місце та час (Ctrl+1)">МІСЦЕ/ЧАС</button>
-  <button data-fmt="action" title="Опис дії (Ctrl+2)">Опис</button>
-  <button data-fmt="character" title="Герой (Ctrl+3)">ГЕРОЙ</button>
-  <button data-fmt="dialogue" title="Репліка (Ctrl+4)">Репліка</button>
-  <button data-fmt="parenthetical" title="Ремарка (Ctrl+5)">(ремарка)</button>
-  <button data-fmt="transition" title="Перехід (Ctrl+6)">ПЕРЕХІД</button>
-  <button data-fmt="cast-list" title="Список ролей у сцені (Ctrl+7)">Ролі</button>
-  <button data-fmt="shot" title="План/ракурс камери (Ctrl+8)">ПЛАН</button>
-  <button data-fmt="super" title="Текст на екрані: ТИТР, SUPER (Ctrl+9)">ТИТР</button>
-  <button data-fmt="montage" title="Монтажна послідовність">Монтаж</button>
-  <button data-fmt="intercut" title="Паралельний монтаж / інтеркат">Інтеркат</button>
-  <button data-fmt="flashback" title="Флешбек — маркер зміни часу">Флешбек</button>
-  <button data-fmt="act-break" title="Акт / розділ">АКТ</button>
+  <button data-fmt="scene-heading" title="Місце та час (⌘1)">МІСЦЕ/ЧАС</button>
+  <button data-fmt="action" title="Опис дії (⌘2)">Опис</button>
+  <button data-fmt="character" title="Герой (⌘3)">ГЕРОЙ</button>
+  <button data-fmt="dialogue" title="Репліка (⌘4)">Репліка</button>
+  <button data-fmt="parenthetical" title="Ремарка (⌘5)">(ремарка)</button>
+  <button data-fmt="transition" title="Перехід (⌘6)">ПЕРЕХІД</button>
   <div class="sep" style="width:1px;background:#555;margin:0 4px"></div>
-  <button id="btnReformat" title="Розбити поточний документ на абзаци за переносами рядків">⇅ Розбити</button>
+  <button id="btnReformat" title="Розбити документ на абзаци">⇅ Розбити</button>
 </div>
 
 <div class="editor-wrap">
@@ -668,8 +644,16 @@
 
 <div id="suggestions" class="suggestions" style="display:none"></div>
 
-<div id="blockChip" class="block-chip"></div>
-<div id="chipMenu" class="chip-menu"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="label">Додатково</div>
+  <button data-fmt="cast-list" title="Список ролей (⌘7)">Ролі</button>
+  <button data-fmt="shot" title="План/ракурс (⌘8)">ПЛАН</button>
+  <button data-fmt="super" title="Текст на екрані (⌘9)">ТИТР</button>
+  <button data-fmt="montage" title="Монтаж">Монтаж</button>
+  <button data-fmt="intercut" title="Інтеркат">Інтеркат</button>
+  <button data-fmt="flashback" title="Флешбек">Флешбек</button>
+  <button data-fmt="act-break" title="Акт/розділ">АКТ</button>
+</div>
 
 <div class="format-hint">Формат: <b id="hint">—</b><span class="tab">Tab — автопідказка</span></div>
 
@@ -1602,6 +1586,10 @@ function updateHint() {
   for (const btn of toolbar.querySelectorAll('button[data-fmt]')) {
     btn.classList.toggle('active', btn.dataset.fmt === type);
   }
+  const sp = document.getElementById('sidePanel');
+  if (sp) for (const btn of sp.querySelectorAll('button[data-fmt]')) {
+    btn.classList.toggle('active', btn.dataset.fmt === type);
+  }
 }
 
 let currentSuggestions = [];
@@ -2070,6 +2058,24 @@ document.addEventListener('selectionchange', () => {
   if (document.body.getAttribute('data-view') === 'editor') checkBlockChange();
 });
 
+// Сайдбар — кліки (mousedown щоб не втрачати фокус)
+document.getElementById('sidePanel').addEventListener('mousedown', (e) => {
+  const btn = e.target.closest('button[data-fmt]');
+  if (!btn) return;
+  e.preventDefault();
+  const type = btn.dataset.fmt;
+  let block = getCurrentBlock();
+  if (!block) {
+    block = editor.lastElementChild;
+    if (!block) { block = document.createElement('div'); editor.appendChild(block); }
+  }
+  setBlockType(block, type);
+  setCaretToEnd(block);
+  editor.focus();
+  save();
+  updateHint();
+});
+
 // mousedown + preventDefault — щоб клік кнопки не забирав фокус з редактора
 toolbar.addEventListener('mousedown', (e) => {
   const btn = e.target.closest('button[data-fmt]');
@@ -2179,112 +2185,14 @@ document.addEventListener('mousedown', (e) => {
   if (!suggBox.contains(e.target)) hideSuggestions();
 });
 
-// --- Block chip (швидка зміна типу абзацу) ---
-const FORMAT_ORDER = ['scene-heading', 'cast-list', 'action', 'character', 'dialogue', 'parenthetical', 'transition', 'shot', 'super', 'montage', 'intercut', 'flashback', 'act-break'];
-const HOTKEY_LABEL = { 'scene-heading':'⌘1','action':'⌘2','character':'⌘3','dialogue':'⌘4','parenthetical':'⌘5','transition':'⌘6','cast-list':'⌘7','shot':'⌘8','super':'⌘9' };
-
-function getChipEls() {
-  return {
-    chip: document.getElementById('blockChip'),
-    menu: document.getElementById('chipMenu'),
-  };
-}
-
+// updateBlockChip — тепер лише підсвітка активного блока (чіп видалено)
 function updateBlockChip() {
-  const { chip: blockChip, menu: chipMenu } = getChipEls();
-  if (!blockChip || !chipMenu) return;
-  const block = getCurrentBlock();
-  // Очищаємо попередню підсвітку
   for (const el of editor.querySelectorAll('.is-active-block')) el.classList.remove('is-active-block');
-  if (!block || document.body.getAttribute('data-view') !== 'editor') {
-    blockChip.classList.remove('visible');
-    chipMenu.classList.remove('open');
-    return;
-  }
-  // Підсвічуємо активний блок
-  block.classList.add('is-active-block');
-  const type = block.getAttribute('data-type') || 'action';
-  blockChip.textContent = LABELS[type] || type;
-  blockChip.dataset.type = type;
-  // Позиціонуємо ліворуч від блока
-  const rect = block.getBoundingClientRect();
-  const editorRect = editor.getBoundingClientRect();
-  const left = editorRect.left + window.scrollX - 4;
-  const top = rect.top + window.scrollY + (rect.height / 2) - 12;
-  blockChip.style.left = (left - blockChip.offsetWidth) + 'px';
-  blockChip.style.top = top + 'px';
-  blockChip.classList.add('visible');
-  // Якщо меню відкрите — переставимо
-  if (chipMenu.classList.contains('open')) positionChipMenu();
-}
-
-function positionChipMenu() {
-  const { chip: blockChip, menu: chipMenu } = getChipEls();
-  if (!blockChip || !chipMenu) return;
-  const rect = blockChip.getBoundingClientRect();
-  chipMenu.style.left = (rect.left + window.scrollX) + 'px';
-  chipMenu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
-}
-
-function renderChipMenu(currentType) {
-  const { menu: chipMenu } = getChipEls();
-  if (!chipMenu) return;
-  chipMenu.innerHTML = '';
-  for (const t of FORMAT_ORDER) {
-    const opt = document.createElement('div');
-    opt.className = 'opt' + (t === currentType ? ' active' : '');
-    opt.innerHTML = `<span></span><span class="hot"></span>`;
-    opt.children[0].textContent = LABELS[t];
-    opt.children[1].textContent = HOTKEY_LABEL[t] || '';
-    opt.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      // Беремо збережений блок (фокус міг втратитись)
-      const block = savedBlockForChip || getCurrentBlock();
-      if (block && block !== editor && editor.contains(block)) {
-        setBlockType(block, t);
-        // Повертаємо каретку в кінець блока
-        setCaretToEnd(block);
-        editor.focus();
-        save();
-        updateHint();
-        updateBlockChip();
-      }
-      chipMenu.classList.remove('open');
-      savedBlockForChip = null;
-    });
-    chipMenu.appendChild(opt);
+  const block = getCurrentBlock();
+  if (block && document.body.getAttribute('data-view') === 'editor') {
+    block.classList.add('is-active-block');
   }
 }
-
-// Збережений активний блок (на випадок втрати фокусу при кліку на чіп)
-let savedBlockForChip = null;
-
-document.getElementById('blockChip').addEventListener('mousedown', (e) => {
-  e.preventDefault(); // не забираємо фокус з редактора
-  e.stopPropagation();
-  // Запам'ятовуємо активний блок ДО того як могли втратити селекцію
-  savedBlockForChip = getCurrentBlock();
-  const { chip: blockChip, menu: chipMenu } = getChipEls();
-  if (chipMenu.classList.contains('open')) {
-    chipMenu.classList.remove('open');
-    return;
-  }
-  renderChipMenu(blockChip.dataset.type);
-  positionChipMenu();
-  chipMenu.classList.add('open');
-});
-
-document.addEventListener('mousedown', (e) => {
-  const { chip: blockChip, menu: chipMenu } = getChipEls();
-  if (!chipMenu) return;
-  if (!chipMenu.contains(e.target) && e.target !== blockChip) {
-    chipMenu.classList.remove('open');
-  }
-});
-
-// При прокрутці/ресайзі — переоблачуємо
-window.addEventListener('scroll', () => updateBlockChip(), true);
-window.addEventListener('resize', () => updateBlockChip());
 
 const HOTKEYS = { '1':'scene-heading','2':'action','3':'character','4':'dialogue','5':'parenthetical','6':'transition','7':'cast-list','8':'shot','9':'super' };
 document.addEventListener('keydown', (e) => {
