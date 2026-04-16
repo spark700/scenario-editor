@@ -128,6 +128,22 @@
   body[data-view="projects"] .top-bar,
   body[data-view="login"] .top-bar { display: none !important; }
 
+  .ai-fmt-btn {
+    margin-left: auto;
+    padding: 5px 14px;
+    background: linear-gradient(135deg, #6b4fa0, #4a6fa5);
+    border: none;
+    color: #fff;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 5px;
+    letter-spacing: 0.5px;
+  }
+  .ai-fmt-btn:hover { filter: brightness(1.15); }
+  .ai-fmt-btn:active { transform: scale(0.96); }
+
   /* Файл-меню */
   .file-menu-wrap { position: relative; align-self: center; }
   .file-menu-btn {
@@ -668,12 +684,10 @@
         <div class="fm-item" data-action="pdf">Експорт PDF</div>
         <div class="fm-item" data-action="docx">Експорт DOCX</div>
         <div class="fm-divider"></div>
-        <div class="fm-item" data-action="import">Імпорт проектів (JSON)</div>
-        <div class="fm-item" data-action="export">Експорт усіх (JSON)</div>
-        <div class="fm-divider"></div>
-        <div class="fm-item" data-action="reformat">Розбити на абзаци</div>
+        <div class="fm-item" data-action="import">Імпорт проекту (JSON)</div>
       </div>
     </div>
+    <button class="ai-fmt-btn" id="aiFmtBtn" title="AI форматування сценарію">AI</button>
   </div>
 </div>
 
@@ -2085,6 +2099,20 @@ const topFileMenu = document.getElementById('topFileMenu');
 const topBackBtn = document.getElementById('topBackBtn');
 
 topBackBtn.addEventListener('click', () => { save(); setView('projects'); });
+
+document.getElementById('aiFmtBtn').addEventListener('click', async () => {
+  const choice = await dlgChoice(
+    'Як форматувати сценарій?',
+    [
+      { label: 'Скасувати', value: 'cancel' },
+      { label: 'Авто (за рядками)', value: 'auto' },
+      { label: 'AI (Groq)', value: 'ai', variant: 'primary' },
+    ],
+    { title: 'AI форматування' }
+  );
+  if (choice === 'auto') reformatEditorContent();
+  else if (choice === 'ai') aiReformatContent();
+});
 
 topFileMenuBtn.addEventListener('click', (e) => {
   e.stopPropagation();
