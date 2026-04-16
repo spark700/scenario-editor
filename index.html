@@ -647,9 +647,6 @@
         <button class="signout" id="btnSignOut">Вийти</button>
       </div>
       <div id="gsiButton"></div>
-      <button id="btnImport">Імпорт</button>
-      <button id="btnExportAll">Експорт</button>
-      <button class="danger" id="btnDeleteAll">Видалити все</button>
     </div>
   </div>
   <div class="tiles" id="tilesContainer"></div>
@@ -1501,41 +1498,7 @@ function switchProject(id) {
 
 // --- Кнопки ---
 
-document.getElementById('btnDeleteAll').addEventListener('click', async () => {
-  const ok1 = await dlgConfirm('Видалити ВСІ проекти без можливості відновлення?', { title: 'Видалити все', okLabel: 'Далі', danger: true });
-  if (!ok1) return;
-  const ok2 = await dlgConfirm('Ви впевнені? Це незворотна дія.', { title: 'Остаточне підтвердження', okLabel: 'Видалити все', danger: true });
-  if (!ok2) return;
-  // Видаляємо всі в клауді перед очищенням локально
-  if (currentUser) {
-    for (const id of Object.keys(projects)) {
-      cloudDeleteProject(id).catch(() => {});
-    }
-  }
-  projects = {};
-  activeId = null;
-  if (projectsKey()) localStorage.removeItem(projectsKey());
-  if (activeKey()) localStorage.removeItem(activeKey());
-  editor.innerHTML = '';
-  updateToggleLabel();
-  renderProjects();
-});
-
-document.getElementById('btnExportAll').addEventListener('click', () => {
-  // Зберігаємо поточний стан перед експортом
-  save();
-  const data = JSON.stringify({ version: 1, projects, activeId }, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `scenario-projects-${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-});
-
 const importInput = document.getElementById('importFile');
-document.getElementById('btnImport').addEventListener('click', () => importInput.click());
 importInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -2134,7 +2097,7 @@ document.addEventListener('click', (e) => {
 topFileMenu.addEventListener('click', async (e) => {
   const item = e.target.closest('.fm-item');
   if (!item) return;
-  fileMenu.classList.remove('open');
+  topFileMenu.classList.remove('open');
   const action = item.dataset.action;
 
   if (action === 'new') {
