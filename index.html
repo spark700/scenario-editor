@@ -1672,37 +1672,58 @@ function buildSuggestions(block) {
 }
 
 // --- Автовизначення типу блока за текстом ---
-function detectBlockType(text) {
+function detectBlockType(text, nextLine) {
   const t = text.trim();
-  if (!t) return 'action';
-  if (/^(ІНТ\.?|НАТ\.?|ЕКСТ\.?|INT\.?|EXT\.?|ИНТ\.?|ЭКСТ\.?)/i.test(t)) return 'scene-heading';
-  if (/^(ПЕРЕХІД|ЗАТЕМНЕННЯ|ІЗ ЗАТЕМНЕННЯ|МОНТАЖНИЙ|РІЗКО|КІНЕЦЬ|НАПЛИВ|FADE|CUT TO|DISSOLVE)/i.test(t)) return 'transition';
-  if (/^\(.+\)$/.test(t) && t.length < 60) return 'parenthetical';
-  // Герой: коротке ALL CAPS (без рядкових)
-  if (/^[А-ЯЁІЇЄҐA-Z][А-ЯЁІЇЄҐA-Z\s,\.\-'’()0-9]{0,40}$/u.test(t) && !/[а-яёa-z]/u.test(t) && t.length < 50) {
-    return 'character';
+  if (!t) return ‘action’;
+  if (/^(ІНТ\.?|НАТ\.?|ЕКСТ\.?|INT\.?|EXT\.?|ИНТ\.?|ЭКСТ\.?)/i.test(t)) return ‘scene-heading’;
+  if (/^(ПЕРЕХІД|ЗАТЕМНЕННЯ|ІЗ ЗАТЕМНЕННЯ|МОНТАЖНИЙ|РІЗКО|КІНЕЦЬ|НАПЛИВ|FADE|CUT TO|DISSOLVE)/i.test(t)) return ‘transition’;
+  if (/^\(.+\)$/.test(t) && t.length < 60) return ‘parenthetical’;
+  // Герой: ALL CAPS (класичний)
+  if (/^[А-ЯЁІЇЄҐA-Z][А-ЯЁІЇЄҐA-Z\s,\.\-’’()0-9]{0,40}$/u.test(t) && !/[а-яёa-z]/u.test(t) && t.length < 50) {
+    return ‘character’;
   }
-  return 'action';
+  // Герой: коротке ім’я 1-3 слова, Title Case або lowercase, < 30 символів
+  // + наступний рядок — довший текст (= репліка)
+  if (t.length < 35 && /^[А-ЯЁІЇЄҐа-яёіїєґA-Za-z][\wА-ЯЁІЇЄҐа-яёіїєґ’’()\s,.-]{0,30}$/u.test(t)) {
+    const wordCount = t.split(/\s+/).length;
+    if (wordCount <= 3 && nextLine && nextLine.trim().length > t.length) {
+      return ‘character’;
+    }
+  }
+  return ‘action’;
 }
 
 // --- Розбиття великого блока на окремі ---
 function splitBlocksFromText(text) {
-  const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 0);
-  const blocks = [];
-  let currentAction = [];
-  for (const line of lines) {
-    const type = detectBlockType(line);
-    if (type === 'action') {
-      currentAction.push(line);
+  // Розбиваємо за порожніми рядками (подвійний \n) як основний роздільник абзаців
+  // Одинарний \n всередині абзацу зберігаємо як окремі блоки тільки якщо рядок — non-action
+  const rawLines = text.split(/\n/).map(l => l.trim());
+  // Групуємо по абзацах (через порожні рядки)
+  const paragraphs = [];
+  let current = [];
+  for (const line of rawLines) {
+    if (line === ‘’) {
+      if (current.length) { paragraphs.push(current); current = []; }
     } else {
-      if (currentAction.length) {
-        blocks.push({ type: 'action', text: currentAction.join(' ') });
-        currentAction = [];
-      }
-      blocks.push({ type, text: line });
+      current.push(line);
     }
   }
-  if (currentAction.length) blocks.push({ type: 'action', text: currentAction.join(' ') });
+  if (current.length) paragraphs.push(current);
+
+  const blocks = [];
+  for (const para of paragraphs) {
+    if (para.length === 1) {
+      const type = detectBlockType(para[0], null);
+      blocks.push({ type, text: para[0] });
+    } else {
+      // Кілька рядків в одному абзаці — розбиваємо по рядках з контекстом
+      for (let i = 0; i < para.length; i++) {
+        const nextLine = i + 1 < para.length ? para[i + 1] : null;
+        const type = detectBlockType(para[i], nextLine);
+        blocks.push({ type, text: para[i] });
+      }
+    }
+  }
   return blocks;
 }
 
@@ -1744,20 +1765,37 @@ document.getElementById('btnReformat').addEventListener('click', async () => {
 // --- Розумна вставка з буфера ---
 editor.addEventListener('paste', (e) => {
   e.preventDefault();
-  const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+  const cd = e.clipboardData || window.clipboardData;
+  let text = cd.getData('text/plain');
+  // Фолбек: якщо plain пустий — витягуємо з html
+  if (!text) {
+    const html = cd.getData('text/html');
+    if (html) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      text = tmp.innerText || tmp.textContent || '';
+    }
+  }
   if (!text) return;
-  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  if (lines.length === 0) return;
-  if (lines.length === 1) {
-    document.execCommand('insertText', false, lines[0]);
+
+  // Рахуємо реальні непорожні рядки
+  const nonEmpty = text.split(/\r?\n/).filter(l => l.trim()).length;
+  if (nonEmpty <= 1) {
+    document.execCommand('insertText', false, text.trim());
     return;
   }
+
   const blocks = splitBlocksFromText(text);
+  if (!blocks.length) return;
+
   let insertAfter = getCurrentBlock() || editor.lastElementChild;
-  if (insertAfter && !insertAfter.textContent.trim()) {
+  // Якщо поточний блок порожній — перевикористовуємо його
+  if (insertAfter && !insertAfter.textContent.trim() && blocks.length > 0) {
     const first = blocks.shift();
-    setBlockType(insertAfter, first.type);
-    insertAfter.textContent = first.text;
+    if (first) {
+      setBlockType(insertAfter, first.type);
+      insertAfter.textContent = first.text;
+    }
   }
   for (const b of blocks) {
     const div = document.createElement('div');
@@ -1769,7 +1807,7 @@ editor.addEventListener('paste', (e) => {
     else editor.appendChild(div);
     insertAfter = div;
   }
-  setCaretToEnd(insertAfter);
+  if (insertAfter) setCaretToEnd(insertAfter);
   save();
   updateHint();
   updateBlockChip();
