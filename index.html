@@ -2161,16 +2161,16 @@ editor.addEventListener('input', () => {
   }
   save();
   updateHint();
-  const block = getCurrentBlock();
-  if (!block) { hideSuggestions(); return; }
-  const text = block.textContent.trim();
-  const type = block.getAttribute('data-type');
-  if (!text && type !== 'scene-heading' && type !== 'transition' && type !== 'parenthetical') {
+  const curBlock = getCurrentBlock();
+  if (!curBlock) { hideSuggestions(); return; }
+  const curText = curBlock.textContent.trim();
+  const curType = curBlock.getAttribute('data-type');
+  if (!curText && curType !== 'scene-heading' && curType !== 'transition' && curType !== 'parenthetical') {
     hideSuggestions();
     return;
   }
-  const items = buildSuggestions(block);
-  if (items.length) showSuggestions(items, block);
+  const items = buildSuggestions(curBlock);
+  if (items.length) showSuggestions(items, curBlock);
   else hideSuggestions();
 });
 
