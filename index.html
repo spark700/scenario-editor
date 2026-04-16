@@ -37,7 +37,7 @@
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    padding: 80px 20px 80px;
+    padding: 110px 20px 80px;
     position: relative;
   }
   .editor {
@@ -57,7 +57,7 @@
 
   .floating-toolbar {
     position: fixed;
-    top: 20px;
+    top: 50px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -99,6 +99,34 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     align-self: center;
   }
+
+  /* Верхня панель — назва + Файл */
+  .top-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+    background: #1a1a1a;
+    border-bottom: 1px solid #333;
+    z-index: 110;
+  }
+  .top-bar .tb-back {
+    background: none !important; border: none !important; color: #888;
+    font-size: 16px; padding: 4px 8px !important; cursor: pointer;
+  }
+  .top-bar .tb-back:hover { color: #fff !important; }
+  .top-bar-name {
+    font-size: 13px; color: #ccc;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 200px;
+  }
+  body[data-view="projects"] .top-bar,
+  body[data-view="login"] .top-bar { display: none !important; }
 
   /* Файл-меню */
   .file-menu-wrap { position: relative; align-self: center; }
@@ -576,7 +604,8 @@
   }
   @media (max-width: 768px) {
     .editor { padding: 40px 32px; }
-    .editor-wrap { padding: 70px 10px 60px; }
+    .editor-wrap { padding: 100px 10px 60px; }
+    .floating-toolbar { top: 44px; }
     .floating-toolbar { gap: 4px; padding: 6px 8px; }
     .floating-toolbar button { padding: 5px 8px; font-size: 11px; }
     .tb-project-name { max-width: 80px; }
@@ -626,35 +655,36 @@
   <div class="tiles" id="tilesContainer"></div>
 </div>
 
-<div id="view-editor"></div>
+<div id="view-editor">
+  <div class="top-bar" id="topBar">
+    <button class="tb-back" id="topBackBtn" title="Мої проекти">←</button>
+    <span class="top-bar-name" id="topBarName"></span>
+    <div class="file-menu-wrap">
+      <button class="file-menu-btn" id="topFileMenuBtn">Файл</button>
+      <div class="file-menu" id="topFileMenu">
+        <div class="fm-item" data-action="new">Новий сценарій</div>
+        <div class="fm-item" data-action="projects">Мої проекти</div>
+        <div class="fm-divider"></div>
+        <div class="fm-item" data-action="save">Зберегти<span class="hotkey">⌘S</span></div>
+        <div class="fm-item" data-action="rename">Перейменувати</div>
+        <div class="fm-divider"></div>
+        <div class="fm-item" data-action="pdf">Експорт PDF</div>
+        <div class="fm-item" data-action="docx">Експорт DOCX</div>
+        <div class="fm-divider"></div>
+        <div class="fm-item" data-action="import">Імпорт проектів (JSON)</div>
+        <div class="fm-item" data-action="export">Експорт усіх (JSON)</div>
+        <div class="fm-divider"></div>
+        <div class="fm-item" data-action="reformat">Розбити на абзаци</div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <input type="file" id="importFile" accept="application/json" style="display:none">
 
 <div class="dlg-backdrop" id="dlgBackdrop"><div class="dlg" id="dlgBox"></div></div>
 
 <div class="floating-toolbar" id="toolbar">
-  <button class="tb-back" id="projectsToggle" title="Назад до проектів">←</button>
-  <span class="tb-project-name" id="tbProjectName"></span>
-  <div class="tb-sep"></div>
-  <div class="file-menu-wrap">
-    <button class="file-menu-btn" id="fileMenuBtn">Файл</button>
-    <div class="file-menu" id="fileMenu">
-      <div class="fm-item" data-action="new">Новий сценарій</div>
-      <div class="fm-item" data-action="projects">Мої проекти</div>
-      <div class="fm-divider"></div>
-      <div class="fm-item" data-action="save">Зберегти<span class="hotkey">⌘S</span></div>
-      <div class="fm-item" data-action="rename">Перейменувати</div>
-      <div class="fm-divider"></div>
-      <div class="fm-item" data-action="pdf">Експорт PDF</div>
-      <div class="fm-item" data-action="docx">Експорт DOCX</div>
-      <div class="fm-divider"></div>
-      <div class="fm-item" data-action="import">Імпорт проектів (JSON)</div>
-      <div class="fm-item" data-action="export">Експорт усіх (JSON)</div>
-      <div class="fm-divider"></div>
-      <div class="fm-item" data-action="reformat">Розбити на абзаци</div>
-    </div>
-  </div>
-  <div class="tb-sep"></div>
   <button data-fmt="scene-heading" title="⌘1">МІСЦЕ/ЧАС</button>
   <button data-fmt="action" title="⌘2">Опис</button>
   <button data-fmt="character" title="⌘3">ГЕРОЙ</button>
@@ -1312,9 +1342,8 @@ function currentName() {
 }
 function updateToggleLabel() {
   const name = currentName();
-  toggleBtn.textContent = '←';
-  const tbName = document.getElementById('tbProjectName');
-  if (tbName) tbName.textContent = name;
+  const topName = document.getElementById('topBarName');
+  if (topName) topName.textContent = name;
   document.title = name + ' — Сценарій';
 }
 
@@ -1471,10 +1500,6 @@ function switchProject(id) {
 }
 
 // --- Кнопки ---
-toggleBtn.addEventListener('click', () => {
-  save();
-  setView('projects');
-});
 
 document.getElementById('btnDeleteAll').addEventListener('click', async () => {
   const ok1 = await dlgConfirm('Видалити ВСІ проекти без можливості відновлення?', { title: 'Видалити все', okLabel: 'Далі', danger: true });
@@ -2091,19 +2116,22 @@ document.getElementById('sidePanel').addEventListener('mousedown', (e) => {
   updateHint();
 });
 
-// --- Файл-меню ---
-const fileMenuBtn = document.getElementById('fileMenuBtn');
-const fileMenu = document.getElementById('fileMenu');
+// --- Верхня панель + Файл-меню ---
+const topFileMenuBtn = document.getElementById('topFileMenuBtn');
+const topFileMenu = document.getElementById('topFileMenu');
+const topBackBtn = document.getElementById('topBackBtn');
 
-fileMenuBtn.addEventListener('click', (e) => {
+topBackBtn.addEventListener('click', () => { save(); setView('projects'); });
+
+topFileMenuBtn.addEventListener('click', (e) => {
   e.stopPropagation();
-  fileMenu.classList.toggle('open');
+  topFileMenu.classList.toggle('open');
 });
 document.addEventListener('click', (e) => {
-  if (!fileMenu.contains(e.target) && e.target !== fileMenuBtn) fileMenu.classList.remove('open');
+  if (!topFileMenu.contains(e.target) && e.target !== topFileMenuBtn) topFileMenu.classList.remove('open');
 });
 
-fileMenu.addEventListener('click', async (e) => {
+topFileMenu.addEventListener('click', async (e) => {
   const item = e.target.closest('.fm-item');
   if (!item) return;
   fileMenu.classList.remove('open');
