@@ -1674,23 +1674,23 @@ function buildSuggestions(block) {
 // --- Автовизначення типу блока за текстом ---
 function detectBlockType(text, nextLine) {
   const t = text.trim();
-  if (!t) return ‘action’;
-  if (/^(ІНТ\.?|НАТ\.?|ЕКСТ\.?|INT\.?|EXT\.?|ИНТ\.?|ЭКСТ\.?)/i.test(t)) return ‘scene-heading’;
-  if (/^(ПЕРЕХІД|ЗАТЕМНЕННЯ|ІЗ ЗАТЕМНЕННЯ|МОНТАЖНИЙ|РІЗКО|КІНЕЦЬ|НАПЛИВ|FADE|CUT TO|DISSOLVE)/i.test(t)) return ‘transition’;
-  if (/^\(.+\)$/.test(t) && t.length < 60) return ‘parenthetical’;
+  if (!t) return 'action';
+  if (/^(ІНТ\.?|НАТ\.?|ЕКСТ\.?|INT\.?|EXT\.?|ИНТ\.?|ЭКСТ\.?)/i.test(t)) return 'scene-heading';
+  if (/^(ПЕРЕХІД|ЗАТЕМНЕННЯ|ІЗ ЗАТЕМНЕННЯ|МОНТАЖНИЙ|РІЗКО|КІНЕЦЬ|НАПЛИВ|FADE|CUT TO|DISSOLVE)/i.test(t)) return 'transition';
+  if (/^\(.+\)$/.test(t) && t.length < 60) return 'parenthetical';
   // Герой: ALL CAPS (класичний)
-  if (/^[А-ЯЁІЇЄҐA-Z][А-ЯЁІЇЄҐA-Z\s,\.\-’’()0-9]{0,40}$/u.test(t) && !/[а-яёa-z]/u.test(t) && t.length < 50) {
-    return ‘character’;
+  if (/^[А-ЯЁІЇЄҐA-Z][А-ЯЁІЇЄҐA-Z\s,\.\-''()0-9]{0,40}$/u.test(t) && !/[а-яёa-z]/u.test(t) && t.length < 50) {
+    return 'character';
   }
-  // Герой: коротке ім’я 1-3 слова, Title Case або lowercase, < 30 символів
+  // Герой: коротке ім'я 1-3 слова, Title Case або lowercase, < 30 символів
   // + наступний рядок — довший текст (= репліка)
-  if (t.length < 35 && /^[А-ЯЁІЇЄҐа-яёіїєґA-Za-z][\wА-ЯЁІЇЄҐа-яёіїєґ’’()\s,.-]{0,30}$/u.test(t)) {
+  if (t.length < 35 && /^[А-ЯЁІЇЄҐа-яёіїєґA-Za-z][\wА-ЯЁІЇЄҐа-яёіїєґ''()\s,.-]{0,30}$/u.test(t)) {
     const wordCount = t.split(/\s+/).length;
     if (wordCount <= 3 && nextLine && nextLine.trim().length > t.length) {
-      return ‘character’;
+      return 'character';
     }
   }
-  return ‘action’;
+  return 'action';
 }
 
 // --- Розбиття великого блока на окремі ---
@@ -1702,7 +1702,7 @@ function splitBlocksFromText(text) {
   const paragraphs = [];
   let current = [];
   for (const line of rawLines) {
-    if (line === ‘’) {
+    if (line === '') {
       if (current.length) { paragraphs.push(current); current = []; }
     } else {
       current.push(line);
