@@ -1715,11 +1715,8 @@ function buildSuggestions(block) {
       const nameBeforeParen = typed.replace(/\s*\(\s*$/, '');
       const ANNS = [
         ['ЗК', 'закадровий голос'],
-        ['ПЗ', 'позакадровий'],
-        ['ПРОД.', 'продовження'],
-        ['V.O.', 'voice over'],
-        ['O.S.', 'off screen'],
-        ["CONT'D", 'continued'],
+        ['ПЗ', 'позакадровий (не в кадрі)'],
+        ['ПРОД.', 'продовження репліки'],
       ];
       for (const [ann, desc] of ANNS) {
         items.push({ value: nameBeforeParen + ' (' + ann + ')', label: '(' + ann + ')', kind: desc });
