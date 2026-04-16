@@ -145,39 +145,44 @@ export default {
   },
 };
 
-const REFORMAT_SYSTEM = `You are a professional screenplay formatter. You receive raw text copied from a document and split it into standard screenplay blocks.
+const REFORMAT_SYSTEM = `You are a professional screenplay formatter. You receive raw text and split it into standard screenplay blocks.
 
 Return a JSON array of blocks. Each block: {"type": "...", "text": "..."}
-Types: "scene-heading", "action", "character", "dialogue", "parenthetical", "transition"
 
-BLOCK TYPE RULES:
-- "scene-heading": INT./EXT./NAT. + location + time. Ukrainian: ІНТ./НАТ./ЕКСТ. Example: "НАТ. ВЕЧІР. ВУЛИЦІ МІСТА"
-- "character": name before dialogue. UPPERCASE the name. Include extensions in standard form.
+AVAILABLE TYPES (13):
+- "scene-heading": location+time. INT./EXT./NAT. or Ukrainian ІНТ./НАТ./ЕКСТ. Example: "НАТ. ВЕЧІР. ВУЛИЦІ МІСТА"
+- "cast-list": list of characters PRESENT in a scene, placed RIGHT AFTER scene-heading. Example: "МАРК (22), ЛЕСЯ (22)". Contains multiple names with ages/descriptions separated by commas. This is NOT a character name before dialogue!
+- "action": scene description, what happens visually, b-roll descriptions, stage directions
+- "character": single character name BEFORE their dialogue. UPPERCASE. May include (ЗК), (ПЗ), (V.O.), (O.S.)
 - "dialogue": what a character says (lines after character name)
-- "parenthetical": brief stage direction in parentheses within dialogue, like "(тихо)", "(пошепки)". Separate block between character and dialogue.
-- "action": scene description, what happens visually, b-roll descriptions, title page elements
+- "parenthetical": brief direction in parentheses between character and dialogue: "(тихо)", "(пошепки)"
 - "transition": CUT TO, FADE, ЗАТЕМНЕННЯ, ПЕРЕХІД, КІНЕЦЬ
+- "shot": camera direction. КРУПНИЙ ПЛАН, ЗАГАЛЬНИЙ ПЛАН, CLOSE UP, WIDE SHOT, POV, ANGLE ON, INSERT
+- "super": on-screen text. Starts with ТИТР:, SUPER:, CHYRON:, TITLE:, CAPTION:
+- "montage": montage sequence header. МОНТАЖ, MONTAGE, СЕРІЯ ПЛАНІВ
+- "intercut": parallel editing. ІНТЕРКАТ, INTERCUT
+- "flashback": time-shift marker. ПОЧАТОК/КІНЕЦЬ ФЛЕШБЕКУ, BEGIN/END FLASHBACK
+- "act-break": structural division. АКТ ПЕРШИЙ, ACT ONE, etc.
 
-CRITICAL — CHARACTER NAME NORMALIZATION:
-Voice-over annotations MUST be standardized:
-- "МАРК(ЗК-закадровий голос)" → "МАРК (ЗК)"
-- "ЛЕСЯ(ЗК)" → "ЛЕСЯ (ЗК)"
-- "JOHN(V.O.)" → "JOHN (V.O.)"
-- "МАРК(ПЗ-позакадровий)" → "МАРК (ПЗ)"
-- Always: space before parenthesis, standard abbreviation inside
-Standard abbreviations: (ЗК) = voice over, (ПЗ) = off screen, (ПРОД.) = continued
-English equivalents: (V.O.), (O.S.), (CONT'D)
+CRITICAL RULES:
 
-Age annotations stay as-is: "МАРК(22)" → "МАРК (22)"
+1. CAST LIST vs CHARACTER: If a line after scene-heading lists MULTIPLE people with ages like "Марк(22), Леся(22)" — this is "cast-list", NOT "character". "character" is ONLY a single name immediately before dialogue.
 
-OTHER RULES:
-- Character names that appear in lowercase or mixed case → UPPERCASE them: "Марк" → "МАРК", "Леся" → "ЛЕСЯ"
-- After a character block, next text is dialogue (unless it starts with parenthesis = parenthetical)
-- Multi-line dialogue from same character = one dialogue block
-- Camera/director notes in parentheses within action stay as action
-- If a line has BOTH character name AND dialogue on same line, split into two blocks
+2. CHARACTER NAME NORMALIZATION:
+- Lowercase/mixed → UPPERCASE: "Марк" → "МАРК", "Леся" → "ЛЕСЯ"
+- Voice-over: "МАРК(ЗК-закадровий голос)" → "МАРК (ЗК)"
+- Off-screen: "ЛЕСЯ(ПЗ)" → "ЛЕСЯ (ПЗ)"
+- Age in cast-list stays: "МАРК (22), ЛЕСЯ (22)"
+- Always space before parenthesis
 
-Return ONLY valid JSON array. No markdown fences, no explanation.`;
+3. After "character", next line is "dialogue" (unless parenthetical in between)
+4. Multi-sentence dialogue = one "dialogue" block
+5. Author's camera/stage directions in parentheses within action = keep as "action"
+6. If a line has character name AND dialogue together, split into "character" + "dialogue"
+7. b-roll descriptions = "action"
+8. Title page elements (title, author name, adaptation credit) = "action"
+
+Return ONLY valid JSON array. No markdown, no explanation.`;
 
 function splitTextIntoChunks(text, maxSize) {
   if (text.length <= maxSize) return [text];
@@ -269,7 +274,7 @@ async function handleReformat(request, env, cors) {
     }
 
     const blocks = allBlocks;
-    const validTypes = new Set(['scene-heading', 'action', 'character', 'dialogue', 'parenthetical', 'transition']);
+    const validTypes = new Set(['scene-heading', 'action', 'character', 'dialogue', 'parenthetical', 'transition', 'cast-list', 'shot', 'super', 'montage', 'intercut', 'flashback', 'act-break']);
     const cleaned = blocks
       .filter(b => b && typeof b.text === 'string' && b.text.trim())
       .map(b => ({
