@@ -1204,6 +1204,15 @@ function baseCharacterName(name) {
   return name.replace(/\s*\((ЗК|ПЗ|ПРОД\.|V\.?O\.?|O\.?S\.?|CONT'?D|CONTINUED)\)\s*/gi, '').trim().toUpperCase();
 }
 
+function cleanCharacterDict() {
+  const cleaned = {};
+  for (const [name, count] of Object.entries(dict.characters)) {
+    const base = baseCharacterName(name);
+    if (base) cleaned[base] = (cleaned[base] || 0) + count;
+  }
+  dict.characters = cleaned;
+}
+
 function learnDict() {
   for (const b of editor.children) {
     if (b.nodeType !== 1) continue;
@@ -1211,7 +1220,6 @@ function learnDict() {
     const text = b.textContent.trim();
     if (!text) continue;
     if (type === 'character') {
-      // Зберігаємо базове ім'я без анотацій
       const base = baseCharacterName(text);
       if (base) dict.characters[base] = (dict.characters[base] || 0) + 1;
     } else if (type === 'scene-heading') {
@@ -1251,6 +1259,7 @@ function ensureAttrs() {
     b.setAttribute('data-placeholder', PLACEHOLDERS[type] || '');
   }
 }
+cleanCharacterDict();
 if (activeId && projects[activeId]) { ensureAttrs(); learnDict(); }
 
 function save() {
@@ -1683,14 +1692,18 @@ function buildSuggestions(block) {
   }
 
   if (type === 'character') {
-    const base = baseCharacterName(text);
+    const typed = text.toUpperCase().trim();
+    const typedBase = baseCharacterName(typed);
     const names = Object.entries(dict.characters).sort((a,b) => b[1]-a[1]);
     const ANNOTATIONS = ['', ' (ЗК)', ' (ПЗ)', ' (ПРОД.)'];
     for (const [name, _] of names) {
-      if (!base || name.startsWith(base)) {
-        // Пропонуємо базове ім'я + варіанти з анотаціями
+      if (!typedBase || name.startsWith(typedBase)) {
         for (const ann of ANNOTATIONS) {
           const full = name + ann;
+          // Не пропонувати якщо повністю збігається з тим що вже набрано
+          if (full === typed) continue;
+          // Фільтруємо за введеним текстом
+          if (typed && !full.startsWith(typed)) continue;
           items.push({ value: full, label: full, kind: ann ? ann.trim() : 'герой' });
         }
       }
