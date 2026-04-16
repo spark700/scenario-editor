@@ -2122,19 +2122,7 @@ const topBackBtn = document.getElementById('topBackBtn');
 
 topBackBtn.addEventListener('click', () => { save(); setView('projects'); });
 
-document.getElementById('aiFmtBtn').addEventListener('click', async () => {
-  const choice = await dlgChoice(
-    'Як форматувати сценарій?',
-    [
-      { label: 'Скасувати', value: 'cancel' },
-      { label: 'Авто (за рядками)', value: 'auto' },
-      { label: 'AI (Groq)', value: 'ai', variant: 'primary' },
-    ],
-    { title: 'AI форматування' }
-  );
-  if (choice === 'auto') reformatEditorContent();
-  else if (choice === 'ai') aiReformatContent();
-});
+document.getElementById('aiFmtBtn').addEventListener('click', () => aiReformatContent());
 
 topFileMenuBtn.addEventListener('click', (e) => {
   e.stopPropagation();
