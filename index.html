@@ -859,10 +859,18 @@ const LABELS = {
   'montage': 'Монтаж', 'intercut': 'Інтеркат', 'flashback': 'Флешбек', 'act-break': 'АКТ',
 };
 const NEXT_AFTER = {
-  'scene-heading': 'cast-list', 'cast-list': 'action', 'action': 'action',
-  'character': 'dialogue', 'dialogue': 'action', 'parenthetical': 'dialogue',
+  'scene-heading': 'cast-list', 'cast-list': 'action', 'action': 'character',
+  'character': 'dialogue', 'dialogue': 'character', 'parenthetical': 'dialogue',
   'transition': 'scene-heading', 'shot': 'action', 'super': 'action',
   'montage': 'action', 'intercut': 'action', 'flashback': 'action', 'act-break': 'scene-heading',
+};
+// Tab-цикл: на порожньому блоці Tab перемикає між альтернативними типами
+const TAB_CYCLE = {
+  'dialogue': 'parenthetical',   // після героя: репліка ←Tab→ ремарка
+  'parenthetical': 'dialogue',   // ремарка ←Tab→ репліка
+  'character': 'action',         // після репліки: герой ←Tab→ опис
+  'action': 'character',         // опис ←Tab→ герой
+  'cast-list': 'action',         // ролі ←Tab→ опис
 };
 
 const SCENE_PREFIXES = [
@@ -2015,8 +2023,21 @@ editor.addEventListener('keydown', (e) => {
   if (e.key === 'Tab') {
     e.preventDefault();
     const block = getCurrentBlock();
-    if (block) {
-      const items = buildSuggestions(block);
+    if (!block) return;
+    const blockText = block.textContent.trim();
+    const curType = block.getAttribute('data-type') || 'action';
+
+    // Якщо блок порожній — Tab перемикає тип (цикл)
+    if (!blockText && TAB_CYCLE[curType]) {
+      setBlockType(block, TAB_CYCLE[curType]);
+      updateHint();
+      updateBlockChip();
+      return;
+    }
+
+    // Якщо є текст — показуємо автопідказки
+    const items = buildSuggestions(block);
+    if (items.length) {
       showSuggestions(items, block);
     }
     return;
