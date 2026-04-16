@@ -949,11 +949,24 @@ function renderGsiButton() {
 }
 
 window.addEventListener('load', () => {
+  // Перевіряємо чи токен ще живий
+  if (currentUser?.token) {
+    try {
+      const payload = decodeJwt(currentUser.token);
+      if (payload.exp * 1000 < Date.now()) {
+        console.warn('Token expired on load, clearing session');
+        currentUser = null;
+        localStorage.removeItem(USER_KEY);
+      }
+    } catch {}
+  }
+
   const tryInit = () => {
     if (window.google?.accounts?.id) {
       renderGsiButton();
       updateUserUi();
       if (currentUser) syncFromCloud();
+      else setView('login');
     } else setTimeout(tryInit, 200);
   };
   tryInit();
@@ -1820,7 +1833,15 @@ async function aiReformatContent() {
     if (typeof updateBlockChip === 'function') updateBlockChip();
   } catch (e) {
     console.error('AI reformat error', e);
-    await dlgAlert('Помилка AI: ' + e.message, 'Помилка');
+    if (e.message.includes('invalid_token') || e.message.includes('unauthorized') || e.message.includes('token_expired')) {
+      const ok = await dlgConfirm('Сесія закінчилась. Перелогінитись?', { title: 'Потрібна авторизація', okLabel: 'Увійти знову' });
+      if (ok) {
+        signOut();
+        // Google One Tap auto-prompts on login screen
+      }
+    } else {
+      await dlgAlert('Помилка AI: ' + e.message, 'Помилка');
+    }
   } finally {
     btn.textContent = origText;
     btn.disabled = false;
