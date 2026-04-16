@@ -2055,17 +2055,19 @@ function normalizeBlock(block) {
   }
 }
 
-// Нормалізуємо при кліку на інший блок
+// Нормалізуємо при переході між блоками (клік або стрілки)
 let lastActiveBlock = null;
-editor.addEventListener('mousedown', () => {
-  setTimeout(() => {
-    const newBlock = getCurrentBlock();
-    if (lastActiveBlock && lastActiveBlock !== newBlock) {
-      normalizeBlock(lastActiveBlock);
-      save();
-    }
-    lastActiveBlock = newBlock;
-  }, 0);
+function checkBlockChange() {
+  const newBlock = getCurrentBlock();
+  if (lastActiveBlock && lastActiveBlock !== newBlock && lastActiveBlock !== editor) {
+    normalizeBlock(lastActiveBlock);
+    save();
+  }
+  lastActiveBlock = newBlock;
+}
+editor.addEventListener('mousedown', () => setTimeout(checkBlockChange, 0));
+document.addEventListener('selectionchange', () => {
+  if (document.body.getAttribute('data-view') === 'editor') checkBlockChange();
 });
 
 // mousedown + preventDefault — щоб клік кнопки не забирав фокус з редактора
@@ -2141,6 +2143,22 @@ editor.addEventListener('keydown', (e) => {
 });
 
 editor.addEventListener('input', () => {
+  // Авто-префікси при першому символі в блоці
+  const block = getCurrentBlock();
+  if (block) {
+    const type = block.getAttribute('data-type');
+    const text = block.textContent;
+    if (type === 'parenthetical' && text && !text.startsWith('(')) {
+      // Додаємо ( на початку
+      block.textContent = '(' + text;
+      // Ставимо курсор в кінець
+      setCaretToEnd(block);
+    }
+    if (type === 'super' && text && !/^(ТИТР|SUPER|CHYRON|TITLE|CAPTION)\s*[:\-]/i.test(text)) {
+      block.textContent = 'ТИТР: ' + text;
+      setCaretToEnd(block);
+    }
+  }
   save();
   updateHint();
   const block = getCurrentBlock();
