@@ -1989,6 +1989,85 @@ editor.addEventListener('paste', (e) => {
   updateBlockChip();
 });
 
+// --- Авто-нормалізація блока при виході з нього ---
+function normalizeBlock(block) {
+  if (!block || block === editor) return;
+  const type = block.getAttribute('data-type');
+  let text = block.textContent.trim();
+  if (!text) return;
+
+  let changed = false;
+
+  if (type === 'parenthetical') {
+    // Обгортаємо в дужки якщо нема
+    if (!text.startsWith('(')) { text = '(' + text; changed = true; }
+    if (!text.endsWith(')')) { text = text + ')'; changed = true; }
+    // Нижній регістр всередині дужок (ремарки завжди малими)
+    const inner = text.slice(1, -1);
+    const lowered = inner.charAt(0).toLowerCase() + inner.slice(1);
+    if (inner !== lowered) { text = '(' + lowered + ')'; changed = true; }
+  }
+
+  if (type === 'character') {
+    // Uppercase ім'я (CSS робить візуально, але зберігаємо і в тексті)
+    const upper = text.toUpperCase();
+    if (text !== upper) { text = upper; changed = true; }
+    // Пробіл перед дужкою: МАРК(ЗК) → МАРК (ЗК)
+    const fixed = text.replace(/([А-ЯЁІЇЄҐA-Z])(\()/, '$1 $2');
+    if (fixed !== text) { text = fixed; changed = true; }
+  }
+
+  if (type === 'scene-heading') {
+    const upper = text.toUpperCase();
+    if (text !== upper) { text = upper; changed = true; }
+    // Стандартизуємо тире: - або – → —
+    const dashed = text.replace(/\s+[-\u2013]\s+/g, ' \u2014 ');
+    if (dashed !== text) { text = dashed; changed = true; }
+  }
+
+  if (type === 'transition') {
+    const upper = text.toUpperCase();
+    if (text !== upper) { text = upper; changed = true; }
+    // Додаємо двокрапку якщо нема і не закінчується крапкою
+    if (!text.endsWith(':') && !text.endsWith('.')) { text = text + ':'; changed = true; }
+  }
+
+  if (type === 'shot') {
+    const upper = text.toUpperCase();
+    if (text !== upper) { text = upper; changed = true; }
+  }
+
+  if (type === 'super') {
+    // Додаємо ТИТР: якщо нема префіксу
+    if (!/^(ТИТР|SUPER|CHYRON|TITLE|CAPTION)\s*[:\-]/i.test(text)) {
+      text = 'ТИТР: ' + text;
+      changed = true;
+    }
+  }
+
+  if (type === 'montage' || type === 'intercut' || type === 'flashback' || type === 'act-break') {
+    const upper = text.toUpperCase();
+    if (text !== upper) { text = upper; changed = true; }
+  }
+
+  if (changed) {
+    block.textContent = text;
+  }
+}
+
+// Нормалізуємо при кліку на інший блок
+let lastActiveBlock = null;
+editor.addEventListener('mousedown', () => {
+  setTimeout(() => {
+    const newBlock = getCurrentBlock();
+    if (lastActiveBlock && lastActiveBlock !== newBlock) {
+      normalizeBlock(lastActiveBlock);
+      save();
+    }
+    lastActiveBlock = newBlock;
+  }, 0);
+});
+
 // mousedown + preventDefault — щоб клік кнопки не забирав фокус з редактора
 toolbar.addEventListener('mousedown', (e) => {
   const btn = e.target.closest('button[data-fmt]');
@@ -2047,13 +2126,14 @@ editor.addEventListener('keydown', (e) => {
     const block = getCurrentBlock();
     if (!block) return;
     e.preventDefault();
+    normalizeBlock(block);
     learnDict();
     const curType = block.getAttribute('data-type') || 'action';
     const nextType = NEXT_AFTER[curType] || 'action';
     const newDiv = document.createElement('div');
     newDiv.innerHTML = '<br>';
-    block.after(newDiv);           // спочатку в DOM
-    setBlockType(newDiv, nextType); // потім тип (guard вимагає що блок в editor)
+    block.after(newDiv);
+    setBlockType(newDiv, nextType);
     setCaretToEnd(newDiv);
     save();
     updateHint();
