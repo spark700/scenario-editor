@@ -9,31 +9,50 @@
 <style>
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
+  :root {
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: "Courier New", Courier, monospace;
+    --bg: #2b2b2b;
+    --surface: #1f1f1f;
+    --paper: #fdfdfb;
+    --text: #e8e8e8;
+    --text-muted: #888;
+    --accent: #88b065;
+    --accent-bg: #6b8e4e;
+    --blue: #4a6fa5;
+    --blue-hover: #5b82bc;
+    --danger: #7a3030;
+    --danger-hover: #a04040;
+    --border: rgba(255,255,255,.1);
+    --shadow: 0 8px 24px rgba(0,0,0,.5);
+    --radius: 8px;
+  }
   body {
-    font-family: "Courier New", Courier, monospace;
-    background: #2b2b2b;
-    color: #e8e8e8;
+    font-family: var(--font-ui);
+    background: var(--bg);
+    color: var(--text);
   }
 
   .editor-wrap {
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    padding: 30px 20px 80px;
+    padding: 80px 20px 80px;
     position: relative;
   }
   .editor {
     width: 100%;
     max-width: 800px;
     min-height: calc(100vh - 60px);
-    background: #fdfdfb;
+    background: var(--paper);
     color: #1a1a1a;
     padding: 60px 80px;
     border-radius: 4px;
     box-shadow: 0 4px 20px rgba(0,0,0,.4);
     outline: none;
-    font-size: 15px;
-    line-height: 1.6;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    line-height: 1.625;
   }
 
   .floating-toolbar {
@@ -67,72 +86,24 @@
     white-space: nowrap;
   }
   .floating-toolbar button:hover { background: #555; }
-  .floating-toolbar .active { background: #6b8e4e; border-color: #88b065; }
-
-  /* Окрема панель експорту зліва */
-  .export-panel {
-    position: fixed;
-    top: 20px;
-    left: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 8px;
-    background: rgba(30, 30, 30, 0.92);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(0,0,0,.5);
-    z-index: 100;
+  .floating-toolbar button:active { transform: scale(0.96); }
+  .floating-toolbar .active { background: var(--accent-bg); border-color: var(--accent); }
+  .tb-sep { width: 1px; height: 22px; background: #555; margin: 0 4px; align-self: center; }
+  .tb-back {
+    background: none !important; border: none !important; color: #aaa;
+    font-size: 16px; padding: 4px 8px !important; cursor: pointer;
   }
-  .export-panel button {
-    padding: 8px 14px;
-    border: 1px solid #5b82bc;
-    background: #4a6fa5;
-    color: #fff;
-    font-family: inherit;
-    font-size: 12px;
-    cursor: pointer;
-    border-radius: 5px;
-    transition: background .15s;
-    white-space: nowrap;
+  .tb-back:hover { color: #fff !important; background: none !important; }
+  .tb-project-name {
+    font-size: 12px; color: #aaa; max-width: 140px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    align-self: center;
   }
-  .export-panel button:hover { background: #5b82bc; }
-
-  /* Панель проектів — право зверху */
-  .projects-panel {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 100;
-    font-family: inherit;
-  }
-  .projects-toggle {
-    padding: 8px 14px;
-    border: 1px solid #555;
-    background: rgba(30,30,30,.92);
-    backdrop-filter: blur(8px);
-    color: #e8e8e8;
-    font-family: inherit;
-    font-size: 12px;
-    cursor: pointer;
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,.5);
-    min-width: 180px;
-    text-align: left;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .projects-toggle:hover { background: rgba(50,50,50,.95); }
-  .projects-toggle::after { content: " ▾"; color: #888; }
 
   /* Система view */
   body[data-view="projects"] .floating-toolbar,
   body[data-view="projects"] .editor-wrap,
-  body[data-view="projects"] .export-panel,
-  body[data-view="projects"] .projects-panel,
-  body[data-view="projects"] .format-hint,
+  body[data-view="projects"] .side-panel,
   body[data-view="projects"] #view-editor,
   body[data-view="projects"] #view-login { display: none !important; }
 
@@ -141,9 +112,7 @@
 
   body[data-view="login"] .floating-toolbar,
   body[data-view="login"] .editor-wrap,
-  body[data-view="login"] .export-panel,
-  body[data-view="login"] .projects-panel,
-  body[data-view="login"] .format-hint,
+  body[data-view="login"] .side-panel,
   body[data-view="login"] #view-editor,
   body[data-view="login"] #view-projects { display: none !important; }
 
@@ -254,7 +223,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    font-family: "Courier New", Courier, monospace;
+    font-family: var(--font-mono);
   }
   .tile:hover {
     transform: translateY(-3px);
@@ -281,8 +250,8 @@
   }
   .tile .tile-preview {
     flex: 1;
-    font-size: 9px;
-    line-height: 1.4;
+    font-size: 10px;
+    line-height: 1.5;
     color: #555;
     overflow: hidden;
     position: relative;
@@ -463,22 +432,7 @@
   .dlg-btn.danger { background: #7a3030; border-color: #a04040; color: #fff; }
   .dlg-btn.danger:hover { background: #a04040; }
 
-  .format-hint {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 6px 14px;
-    background: rgba(30,30,30,.92);
-    border: 1px solid rgba(255,255,255,.1);
-    border-radius: 20px;
-    font-size: 12px;
-    color: #bbb;
-    z-index: 100;
-    pointer-events: none;
-  }
-  .format-hint b { color: #88b065; }
-  .format-hint .tab { color: #e0b040; margin-left: 10px; }
+  .format-hint { display: none !important; }
 
   .suggestions {
     position: absolute;
@@ -491,7 +445,7 @@
     max-height: 280px;
     overflow-y: auto;
     z-index: 200;
-    font-family: "Courier New", monospace;
+    font-family: var(--font-mono);
     font-size: 13px;
   }
   .suggestions .item {
@@ -522,15 +476,15 @@
   .editor .action { margin: 12px 0; }
   .editor .character { text-transform: uppercase; font-weight: bold; margin: 20px 0 0 40%; }
   .editor .dialogue { margin: 4px 20% 12px 20%; }
-  .editor .parenthetical { font-style: italic; margin: 2px 0 2px 30%; color: #444; }
-  .editor .transition { text-transform: uppercase; font-weight: bold; text-align: right; margin: 16px 0; color: #6b3a3a; }
-  .editor .cast-list { margin: 4px 0 12px 20%; font-weight: bold; color: #555; font-size: 14px; }
-  .editor .shot { text-transform: uppercase; font-weight: bold; margin: 16px 0 4px; color: #3a5a8c; }
-  .editor .super { text-align: center; font-style: italic; margin: 14px 10% 14px 10%; color: #6b5a2e; font-weight: bold; }
+  .editor .parenthetical { font-style: italic; margin: 2px 0 2px 30%; color: #666; }
+  .editor .transition { text-transform: uppercase; font-weight: bold; text-align: right; margin: 16px 0; color: #9b4040; }
+  .editor .cast-list { margin: 4px 0 12px 20%; font-weight: bold; color: #486848; font-size: 15px; }
+  .editor .shot { text-transform: uppercase; font-weight: bold; margin: 16px 0 4px; color: #2d6a9f; }
+  .editor .super { text-align: center; font-style: italic; margin: 14px 10% 14px 10%; color: #8a7020; font-weight: bold; }
   .editor .montage { text-transform: uppercase; font-weight: bold; text-decoration: underline; margin: 20px 0 8px; }
-  .editor .intercut { text-transform: uppercase; font-weight: bold; text-decoration: underline; margin: 20px 0 8px; color: #5a3a6b; }
-  .editor .flashback { text-transform: uppercase; font-weight: bold; text-align: center; margin: 20px 0 8px; color: #8c5a3a; letter-spacing: 2px; }
-  .editor .act-break { text-transform: uppercase; font-weight: bold; text-align: center; margin: 32px 0 16px; font-size: 18px; letter-spacing: 3px; border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; padding: 12px 0; }
+  .editor .intercut { text-transform: uppercase; font-weight: bold; text-decoration: underline; margin: 20px 0 8px; color: #7040a0; }
+  .editor .flashback { text-transform: uppercase; font-weight: bold; text-align: center; margin: 20px 0 8px; color: #b05830; letter-spacing: 2px; }
+  .editor .act-break { text-transform: uppercase; font-weight: bold; text-align: center; margin: 32px 0 16px; font-size: 18px; letter-spacing: 3px; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; padding: 12px 0; }
 
   .editor div[data-type]:empty::before,
   .editor div[data-type]:has(br:only-child)::before {
@@ -578,8 +532,30 @@
     letter-spacing: 1px;
     padding: 4px 2px 2px;
   }
-  body[data-view="projects"] .side-panel,
-  body[data-view="login"] .side-panel { display: none !important; }
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .side-panel { display: none !important; }
+  }
+  @media (max-width: 768px) {
+    .editor { padding: 40px 32px; }
+    .editor-wrap { padding: 70px 10px 60px; }
+    .floating-toolbar { gap: 4px; padding: 6px 8px; }
+    .floating-toolbar button { padding: 5px 8px; font-size: 11px; }
+    .tb-project-name { max-width: 80px; }
+    #view-projects { padding: 20px 16px 60px; }
+    .gallery-header { flex-direction: column; align-items: flex-start; }
+    .tiles { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .tile { aspect-ratio: auto; min-height: 180px; }
+  }
+  @media (max-width: 480px) {
+    .editor { padding: 30px 16px; }
+    .editor .character { margin-left: 25%; }
+    .editor .dialogue { margin: 4px 10% 12px 10%; }
+    .editor .parenthetical { margin-left: 15%; }
+    .floating-toolbar { border-radius: 0; top: 0; left: 0; right: 0; transform: none; max-width: 100%; border-radius: 0 0 10px 10px; }
+    .tb-project-name { display: none; }
+    .tiles { grid-template-columns: 1fr; }
+  }
 
 </style>
 </head>
@@ -604,38 +580,34 @@
         <button class="signout" id="btnSignOut">Вийти</button>
       </div>
       <div id="gsiButton"></div>
-      <button id="btnImport">📥 Імпорт</button>
-      <button id="btnExportAll">📤 Експорт усіх</button>
-      <button class="danger" id="btnDeleteAll">🗑 Видалити все</button>
+      <button id="btnImport">Імпорт</button>
+      <button id="btnExportAll">Експорт</button>
+      <button class="danger" id="btnDeleteAll">Видалити все</button>
     </div>
   </div>
   <div class="tiles" id="tilesContainer"></div>
 </div>
 
-<div id="view-editor">
-  <div class="export-panel">
-    <button onclick="exportPDF()">💾 PDF</button>
-    <button onclick="exportDOCX()">💾 Word</button>
-  </div>
-
-  <div class="projects-panel">
-    <button class="projects-toggle" id="projectsToggle">Проект</button>
-  </div>
-</div>
+<div id="view-editor"></div>
 
 <input type="file" id="importFile" accept="application/json" style="display:none">
 
 <div class="dlg-backdrop" id="dlgBackdrop"><div class="dlg" id="dlgBox"></div></div>
 
 <div class="floating-toolbar" id="toolbar">
-  <button data-fmt="scene-heading" title="Місце та час (⌘1)">МІСЦЕ/ЧАС</button>
-  <button data-fmt="action" title="Опис дії (⌘2)">Опис</button>
-  <button data-fmt="character" title="Герой (⌘3)">ГЕРОЙ</button>
-  <button data-fmt="dialogue" title="Репліка (⌘4)">Репліка</button>
-  <button data-fmt="parenthetical" title="Ремарка (⌘5)">(ремарка)</button>
-  <button data-fmt="transition" title="Перехід (⌘6)">ПЕРЕХІД</button>
-  <div class="sep" style="width:1px;background:#555;margin:0 4px"></div>
-  <button id="btnReformat" title="Розбити документ на абзаци">⇅ Розбити</button>
+  <button class="tb-back" id="projectsToggle" title="Назад до проектів">←</button>
+  <span class="tb-project-name" id="tbProjectName"></span>
+  <div class="tb-sep"></div>
+  <button data-fmt="scene-heading" title="⌘1">МІСЦЕ/ЧАС</button>
+  <button data-fmt="action" title="⌘2">Опис</button>
+  <button data-fmt="character" title="⌘3">ГЕРОЙ</button>
+  <button data-fmt="dialogue" title="⌘4">Репліка</button>
+  <button data-fmt="parenthetical" title="⌘5">(ремарка)</button>
+  <button data-fmt="transition" title="⌘6">ПЕРЕХІД</button>
+  <div class="tb-sep"></div>
+  <button id="btnReformat" title="Розбити документ на абзаци">Розбити</button>
+  <button onclick="exportPDF()" title="Експорт PDF">PDF</button>
+  <button onclick="exportDOCX()" title="Експорт Word">DOCX</button>
 </div>
 
 <div class="editor-wrap">
@@ -1286,7 +1258,11 @@ function currentName() {
   return projects[activeId]?.name || 'Без назви';
 }
 function updateToggleLabel() {
-  toggleBtn.textContent = '📄 ' + currentName();
+  const name = currentName();
+  toggleBtn.textContent = '←';
+  const tbName = document.getElementById('tbProjectName');
+  if (tbName) tbName.textContent = name;
+  document.title = name + ' — Сценарій';
 }
 
 function fmtDate(ts) {
