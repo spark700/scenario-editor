@@ -1695,16 +1695,21 @@ function buildSuggestions(block) {
     const typed = text.toUpperCase().trim();
     const typedBase = baseCharacterName(typed);
     const names = Object.entries(dict.characters).sort((a,b) => b[1]-a[1]);
-    const ANNOTATIONS = ['', ' (ЗК)', ' (ПЗ)', ' (ПРОД.)'];
-    for (const [name, _] of names) {
-      if (!typedBase || name.startsWith(typedBase)) {
-        for (const ann of ANNOTATIONS) {
-          const full = name + ann;
-          // Не пропонувати якщо повністю збігається з тим що вже набрано
-          if (full === typed) continue;
-          // Фільтруємо за введеним текстом
-          if (typed && !full.startsWith(typed)) continue;
-          items.push({ value: full, label: full, kind: ann ? ann.trim() : 'герой' });
+    const hasOpenParen = /\(\s*$/.test(typed);
+
+    if (hasOpenParen) {
+      // Після відкритої дужки — підказки анотацій
+      const nameBeforeParen = typed.replace(/\s*\(\s*$/, '');
+      const ANNS = ['ЗК', 'ПЗ', 'ПРОД.', 'V.O.', 'O.S.', "CONT'D"];
+      for (const ann of ANNS) {
+        items.push({ value: nameBeforeParen + ' (' + ann + ')', label: '(' + ann + ')', kind: 'анотація' });
+      }
+    } else {
+      // Тільки базові імена
+      for (const [name, _] of names) {
+        if (!typedBase || name.startsWith(typedBase)) {
+          if (name === typed) continue;
+          items.push({ value: name, label: name, kind: 'герой' });
         }
       }
     }
