@@ -1698,6 +1698,11 @@ function buildSuggestions(block) {
     const typedBase = baseCharacterName(typed);
     const names = Object.entries(dict.characters).sort((a,b) => b[1]-a[1]);
     const hasOpenParen = /\(\s*$/.test(typed);
+    // Якщо ім'я вже має закриту анотацію — нічого не пропонуємо, воно завершене
+    const hasClosedAnnotation = /\((ЗК|ПЗ|ПРОД\.|V\.?O\.?|O\.?S\.?|CONT'?D)\)\s*$/i.test(typed);
+    if (hasClosedAnnotation) return items;
+    // Якщо текст точно збігається з відомим персонажем — теж не пропонуємо
+    if (names.some(([n]) => n === typed)) return items;
 
     if (hasOpenParen) {
       // Після відкритої дужки — підказки анотацій
