@@ -2122,7 +2122,9 @@ const topBackBtn = document.getElementById('topBackBtn');
 
 topBackBtn.addEventListener('click', () => { save(); setView('projects'); });
 
-document.getElementById('aiFmtBtn').addEventListener('click', () => aiReformatContent());
+document.getElementById('aiFmtBtn').addEventListener('click', () => {
+  aiReformatContent();
+});
 
 topFileMenuBtn.addEventListener('click', (e) => {
   e.stopPropagation();
