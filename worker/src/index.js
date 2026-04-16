@@ -59,9 +59,12 @@ export default {
       return json({ error: 'not_found' }, 404, cors);
     }
 
-    // Авторизація
+    // Авторизація (header або query param для sendBeacon)
     const auth = request.headers.get('Authorization') || '';
-    const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+    let token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+    if (!token) {
+      token = url.searchParams.get('token') || null;
+    }
     if (!token) return json({ error: 'unauthorized' }, 401, cors);
 
     let user;
@@ -116,7 +119,7 @@ export default {
         name: String(body.name || '(без назви)').slice(0, 200),
         content: String(body.content || ''),
         dict: body.dict || { characters: {}, locations: {}, phrases: {} },
-        updated: Date.now(),
+        updated: body.updated || Date.now(),
       };
       await env.BUCKET.put(key, JSON.stringify(payload), {
         customMetadata: {
