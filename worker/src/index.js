@@ -145,30 +145,39 @@ export default {
   },
 };
 
-const REFORMAT_SYSTEM = `You are a professional screenplay formatter. You receive raw text that was copied from a document and needs to be split into screenplay blocks.
+const REFORMAT_SYSTEM = `You are a professional screenplay formatter. You receive raw text copied from a document and split it into standard screenplay blocks.
 
-Analyze the text and return a JSON array of blocks. Each block has:
-- "type": one of "scene-heading", "action", "character", "dialogue", "parenthetical", "transition"
-- "text": the cleaned text content
+Return a JSON array of blocks. Each block: {"type": "...", "text": "..."}
+Types: "scene-heading", "action", "character", "dialogue", "parenthetical", "transition"
 
-Rules:
-- "scene-heading": location and time lines like "INT. ROOM - DAY", "EXT. STREET - NIGHT" or their Ukrainian equivalents "ІНТ.", "НАТ.", "ЕКСТ."
-- "character": character name before their dialogue. Usually short, often UPPERCASE. Can include age like "МАРК(22)"
-- "dialogue": what a character says (lines AFTER a character name)
-- "parenthetical": stage directions in parentheses within dialogue, like "(тихо)", "(шепотом)"
-- "action": scene description, stage directions, what happens visually
-- "transition": CUT TO, FADE OUT, ЗАТЕМНЕННЯ, ПЕРЕХІД, etc.
+BLOCK TYPE RULES:
+- "scene-heading": INT./EXT./NAT. + location + time. Ukrainian: ІНТ./НАТ./ЕКСТ. Example: "НАТ. ВЕЧІР. ВУЛИЦІ МІСТА"
+- "character": name before dialogue. UPPERCASE the name. Include extensions in standard form.
+- "dialogue": what a character says (lines after character name)
+- "parenthetical": brief stage direction in parentheses within dialogue, like "(тихо)", "(пошепки)". Separate block between character and dialogue.
+- "action": scene description, what happens visually, b-roll descriptions, title page elements
+- "transition": CUT TO, FADE, ЗАТЕМНЕННЯ, ПЕРЕХІД, КІНЕЦЬ
 
-Key context clues:
-- After a character name, the next non-empty line(s) are usually dialogue
-- Short lines in caps/title case before dialogue = character names
-- Lines describing what happens = action
-- B-roll descriptions = action
-- Title page elements (title, author) = action
-- "(ЗК)" or "(V.O.)" after name = still character type, keep the annotation
+CRITICAL — CHARACTER NAME NORMALIZATION:
+Voice-over annotations MUST be standardized:
+- "МАРК(ЗК-закадровий голос)" → "МАРК (ЗК)"
+- "ЛЕСЯ(ЗК)" → "ЛЕСЯ (ЗК)"
+- "JOHN(V.O.)" → "JOHN (V.O.)"
+- "МАРК(ПЗ-позакадровий)" → "МАРК (ПЗ)"
+- Always: space before parenthesis, standard abbreviation inside
+Standard abbreviations: (ЗК) = voice over, (ПЗ) = off screen, (ПРОД.) = continued
+English equivalents: (V.O.), (O.S.), (CONT'D)
 
-Return ONLY valid JSON array, no markdown, no explanation.
-Example: [{"type":"scene-heading","text":"INT. ROOM - NIGHT"},{"type":"character","text":"JOHN"},{"type":"dialogue","text":"Hello there."}]`;
+Age annotations stay as-is: "МАРК(22)" → "МАРК (22)"
+
+OTHER RULES:
+- Character names that appear in lowercase or mixed case → UPPERCASE them: "Марк" → "МАРК", "Леся" → "ЛЕСЯ"
+- After a character block, next text is dialogue (unless it starts with parenthesis = parenthetical)
+- Multi-line dialogue from same character = one dialogue block
+- Camera/director notes in parentheses within action stay as action
+- If a line has BOTH character name AND dialogue on same line, split into two blocks
+
+Return ONLY valid JSON array. No markdown fences, no explanation.`;
 
 async function handleReformat(request, env, cors) {
   const auth = request.headers.get('Authorization') || '';
