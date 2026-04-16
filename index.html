@@ -2051,9 +2051,9 @@ editor.addEventListener('keydown', (e) => {
     const curType = block.getAttribute('data-type') || 'action';
     const nextType = NEXT_AFTER[curType] || 'action';
     const newDiv = document.createElement('div');
-    setBlockType(newDiv, nextType);
     newDiv.innerHTML = '<br>';
-    block.after(newDiv);
+    block.after(newDiv);           // спочатку в DOM
+    setBlockType(newDiv, nextType); // потім тип (guard вимагає що блок в editor)
     setCaretToEnd(newDiv);
     save();
     updateHint();
