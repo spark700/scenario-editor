@@ -36,23 +36,74 @@
   .editor-wrap {
     min-height: 100vh;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
     padding: 110px 20px 80px;
     position: relative;
   }
   .editor {
     width: 100%;
-    max-width: 800px;
-    min-height: calc(100vh - 60px);
-    background: var(--paper);
-    color: #1a1a1a;
-    padding: 60px 80px;
-    border-radius: 4px;
-    box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
     outline: none;
+    color: #1a1a1a;
     font-family: var(--font-mono);
-    font-size: 16px;
-    line-height: 1.625;
+    font-size: 12pt;
+    line-height: 1;
+  }
+  .page {
+    position: relative;
+    background: var(--paper);
+    box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    border-radius: 2px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .page-content {
+    height: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    outline: none;
+  }
+  .page-number {
+    position: absolute;
+    font-family: var(--font-mono);
+    font-size: 12pt;
+    color: #666;
+    pointer-events: none;
+  }
+  /* Synthetic markers inserted by paginator — excluded from save */
+  .more-marker, .contd-marker {
+    color: #1a1a1a;
+    user-select: none;
+    -webkit-user-modify: read-only;
+  }
+  .more-marker { text-align: right; padding-right: 0; font-style: italic; }
+  .contd-marker { font-weight: bold; }
+  /* A4 layout */
+  .editor-wrap[data-page-format="A4"] .page {
+    width: 210mm;
+    height: 297mm;
+  }
+  .editor-wrap[data-page-format="A4"] .page-content {
+    padding: 25mm 15mm 25mm 30mm;
+  }
+  .editor-wrap[data-page-format="A4"] .page-number {
+    top: 10mm; right: 15mm;
+  }
+  /* Letter layout */
+  .editor-wrap[data-page-format="Letter"] .page {
+    width: 8.5in;
+    height: 11in;
+  }
+  .editor-wrap[data-page-format="Letter"] .page-content {
+    padding: 1in 1in 1in 1.5in;
+  }
+  .editor-wrap[data-page-format="Letter"] .page-number {
+    top: 0.5in; right: 1in;
   }
 
   .floating-toolbar {
@@ -127,6 +178,103 @@
   }
   body[data-view="projects"] .top-bar,
   body[data-view="login"] .top-bar { display: none !important; }
+
+  .settings-btn {
+    background: transparent !important;
+    border: 1px solid #444 !important;
+    color: #aaa !important;
+    width: 30px; height: 28px;
+    padding: 0 !important;
+    font-size: 14px !important;
+    cursor: pointer;
+    border-radius: 5px !important;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .settings-btn:hover { background: #2a2a2a !important; color: #fff !important; }
+
+  /* --- Налаштування: діалог --- */
+  .dlg-settings .dlg-section { margin-bottom: 20px; }
+  .dlg-settings .dlg-section:last-child { margin-bottom: 0; }
+  .dlg-settings .dlg-section-title {
+    font-size: 11px; color: #888; text-transform: uppercase;
+    letter-spacing: .5px; margin-bottom: 8px;
+  }
+  .dlg-settings .opt-row {
+    display: flex; gap: 10px;
+  }
+  .dlg-settings .opt {
+    flex: 1;
+    padding: 10px 12px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: center;
+    transition: background .15s, border-color .15s;
+  }
+  .dlg-settings .opt:hover { background: #333; }
+  .dlg-settings .opt.selected {
+    background: rgba(136, 176, 101, 0.12);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .dlg-settings .opt-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .dlg-settings .opt-sub { font-size: 11px; color: #888; }
+
+  /* --- AI processing state (shimmer) --- */
+  .editor.ai-processing {
+    pointer-events: none;
+    user-select: none;
+  }
+  .editor.ai-processing [data-type] {
+    background: linear-gradient(90deg,
+      #1a1a1a 0%,
+      #1a1a1a 30%,
+      #6b4fa0 45%,
+      #4a6fa5 50%,
+      #88b065 55%,
+      #1a1a1a 70%,
+      #1a1a1a 100%);
+    background-size: 300% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: ai-shimmer 2s linear infinite;
+  }
+  @keyframes ai-shimmer {
+    0%   { background-position: 300% 0; }
+    100% { background-position: -300% 0; }
+  }
+  .ai-progress-badge {
+    position: fixed;
+    top: 50px;
+    right: 20px;
+    z-index: 300;
+    padding: 8px 14px;
+    background: rgba(30, 30, 30, 0.95);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(136, 176, 101, 0.4);
+    border-radius: 999px;
+    color: #e8e8e8;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    box-shadow: 0 4px 16px rgba(0,0,0,.5);
+    display: none;
+    align-items: center;
+    gap: 8px;
+  }
+  .ai-progress-badge.visible { display: inline-flex; }
+  .ai-progress-badge .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: ai-pulse 1s ease-in-out infinite;
+  }
+  @keyframes ai-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
 
   .ai-menu-wrap { margin-left: auto; }
   .ai-fmt-btn {
@@ -240,6 +388,34 @@
     color: #666;
     line-height: 1.5;
   }
+  .dev-login-btn {
+    display: none;
+    margin: 14px auto 0;
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px dashed #666;
+    border-radius: 999px;
+    color: #999;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .dev-login-btn:hover { color: #fff; border-color: #999; }
+  .dev-login-btn.visible { display: inline-block; }
+  .dev-badge {
+    display: none;
+    margin-left: 8px;
+    padding: 2px 8px;
+    background: #7a3030;
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+    border-radius: 4px;
+    letter-spacing: .5px;
+    vertical-align: middle;
+  }
+  body.dev-mode .dev-badge { display: inline-block; }
 
   /* Галерея проектів */
   #view-projects {
@@ -651,6 +827,7 @@
     <h1>Редактор сценаріїв</h1>
     <p class="subtitle">Увійдіть через Google, щоб зберігати сценарії в хмарі та синхронізувати між пристроями.</p>
     <div id="gsiLoginButton"></div>
+    <button type="button" id="devLoginBtn" class="dev-login-btn">Dev-вхід (localhost only)</button>
     <p class="footer-note">Ваші проекти зберігаються у вашому приватному сховищі.<br>Ніхто інший їх не бачить.</p>
   </div>
 </div>
@@ -661,7 +838,7 @@
     <div class="gallery-actions">
       <div class="user-block" id="userBlock" style="display:none">
         <img id="userAvatar" alt="">
-        <span class="user-name" id="userName"></span>
+        <span class="user-name" id="userName"></span><span class="dev-badge">DEV</span>
         <button class="signout" id="btnSignOut">Вийти</button>
       </div>
       <div id="gsiButton"></div>
@@ -674,6 +851,7 @@
   <div class="top-bar" id="topBar">
     <button class="tb-back" id="topBackBtn" title="Мої проекти">←</button>
     <span class="top-bar-name" id="topBarName"></span>
+    <button class="settings-btn" id="topSettingsBtn" title="Налаштування" aria-label="Налаштування">⚙</button>
     <div class="file-menu-wrap">
       <button class="file-menu-btn" id="topFileMenuBtn">Файл</button>
       <div class="file-menu" id="topFileMenu">
@@ -700,6 +878,7 @@
 
 <input type="file" id="importFile" accept="application/json" style="display:none">
 
+<div class="ai-progress-badge" id="aiProgressBadge"><div class="dot"></div><span id="aiProgressText">AI обробка…</span></div>
 <div class="dlg-backdrop" id="dlgBackdrop"><div class="dlg" id="dlgBox"></div></div>
 
 <div class="floating-toolbar" id="toolbar">
@@ -711,7 +890,7 @@
   <button data-fmt="transition" title="⌘6">ПЕРЕХІД</button>
 </div>
 
-<div class="editor-wrap">
+<div class="editor-wrap" id="editorWrap" data-page-format="A4">
   <div id="editor" class="editor" contenteditable="true" spellcheck="true"></div>
 </div>
 
@@ -938,6 +1117,448 @@ const SCENE_PREFIXES = [
 ];
 const TIME_OF_DAY = ['ДЕНЬ', 'НІЧ', 'РАНОК', 'ВЕЧІР', 'СВІТАНОК', 'СУТІНКИ', 'ЗАХІД СОНЦЯ', 'ПІЗНІЙ ВЕЧІР', 'ПЕРЕДСВІТАННЯ'];
 const TRANSITIONS = ['ПЕРЕХІД ДО:', 'ЗАТЕМНЕННЯ.', 'ІЗ ЗАТЕМНЕННЯ:', 'МОНТАЖНИЙ ПЕРЕХІД:', 'РІЗКО ДО:', 'КІНЕЦЬ.', 'НАПЛИВ:'];
+// --- Пагінація (розбиття сценарію на сторінки) ---
+const PAGINATOR = {
+  _paginating: false,
+  _scheduleTimer: null,
+};
+
+function isPaginatorSynthetic(el) {
+  return el && el.nodeType === 1 && (el.classList.contains('more-marker') || el.classList.contains('contd-marker') || el.classList.contains('page-number'));
+}
+
+function createEmptyPage() {
+  const page = document.createElement('div');
+  page.className = 'page';
+  page.setAttribute('contenteditable', 'false');
+  const pc = document.createElement('div');
+  pc.className = 'page-content';
+  pc.setAttribute('contenteditable', 'true');
+  page.appendChild(pc);
+  return page;
+}
+
+function flattenBlocks() {
+  // Повертає плоский список блоків (без .page/.page-content обгорток, без синтетичних маркерів).
+  // УВАГА: для split-dialogue повертає ВСІ частини (head + tail). Для логічного списку use collectLogicalAnchors().
+  const blocks = [];
+  const collect = (root) => {
+    for (const child of Array.from(root.children)) {
+      if (child.nodeType !== 1) continue;
+      if (child.classList.contains('page')) {
+        const pc = child.querySelector(':scope > .page-content');
+        if (pc) collect(pc);
+      } else if (child.classList.contains('page-content')) {
+        collect(child);
+      } else if (isPaginatorSynthetic(child)) {
+        continue;
+      } else {
+        blocks.push(child);
+      }
+    }
+  };
+  collect(editor);
+  return blocks;
+}
+
+function collectLogicalAnchors() {
+  // Логічний список: для split-груп — тільки перша частина.
+  const result = [];
+  const seen = new Set();
+  for (const b of flattenBlocks()) {
+    const id = b.getAttribute('data-split-id');
+    if (id) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+    }
+    result.push(b);
+  }
+  return result;
+}
+
+function countTextLines(el) {
+  // Число візуальних рядків тексту в блоці через Range.getClientRects()
+  if (!el || !el.textContent) return 0;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const rects = Array.from(range.getClientRects()).filter((r) => r.height > 0.5);
+  return rects.length || (el.textContent.trim() ? 1 : 0);
+}
+
+function mergeDialogueSplits() {
+  // Мутує DOM: об'єднує всі split-частини dialogue у оригінальні блоки.
+  const groups = new Map();
+  for (const b of flattenBlocks()) {
+    const id = b.getAttribute('data-split-id');
+    if (!id) continue;
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(b);
+  }
+  for (const [id, parts] of groups) {
+    const anchor = parts[0];
+    let merged = anchor.innerHTML;
+    for (let i = 1; i < parts.length; i++) {
+      merged += ' ' + parts[i].innerHTML;
+      parts[i].remove();
+    }
+    anchor.innerHTML = merged.trim();
+    anchor.removeAttribute('data-split-id');
+    anchor.classList.remove('dialogue-split');
+  }
+}
+
+function serializeSource() {
+  // Неруйнівна серіалізація: повертає HTML всіх логічних блоків з об'єднаними split-частинами.
+  const raw = flattenBlocks();
+  const seenIdx = new Map();
+  const result = [];
+  for (const b of raw) {
+    const id = b.getAttribute('data-split-id');
+    if (!id) {
+      const clone = b.cloneNode(true);
+      result.push(clone.outerHTML);
+      continue;
+    }
+    if (seenIdx.has(id)) {
+      // Додаємо до попередньо створеного клону
+      const idx = seenIdx.get(id);
+      const tmp = document.createElement('div');
+      tmp.innerHTML = result[idx];
+      const anchor = tmp.firstChild;
+      anchor.innerHTML = anchor.innerHTML + ' ' + b.innerHTML;
+      result[idx] = anchor.outerHTML;
+    } else {
+      const clone = b.cloneNode(true);
+      clone.removeAttribute('data-split-id');
+      clone.classList.remove('dialogue-split');
+      seenIdx.set(id, result.length);
+      result.push(clone.outerHTML);
+    }
+  }
+  return result.join('');
+}
+
+function trySplitDialogue(block, pc) {
+  // Пробує розбити dialogue-блок на head+tail на межі речення. Head залишається в pc, tail повертається.
+  // Повертає { tail } або null якщо розбити не можна.
+  const fullText = block.textContent;
+  if (!fullText || fullText.length < 20) return null;
+  // Знаходимо межі речень (. ! ? …), крім всередині скорочень
+  const boundaries = [];
+  const re = /[.!?…]+(\s+|$)/g;
+  let m;
+  while ((m = re.exec(fullText)) !== null) {
+    const endIdx = m.index + m[0].length - m[1].length; // після останнього знаку пунктуації, до пробілу
+    if (endIdx < fullText.length - 2) boundaries.push(endIdx);
+  }
+  if (!boundaries.length) return null;
+  // Пробуємо від найдовшого head до найкоротшого — щоб максимально заповнити поточну сторінку
+  const originalText = fullText;
+  for (let i = boundaries.length - 1; i >= 0; i--) {
+    const splitAt = boundaries[i];
+    const headText = fullText.substring(0, splitAt).trim();
+    const tailText = fullText.substring(splitAt).trim();
+    if (!headText || !tailText) continue;
+    // Оновлюємо блок до head, вимірюємо
+    block.textContent = headText;
+    if (isOverflowing(pc)) continue; // head не вміщується
+    const headLines = countTextLines(block);
+    if (headLines < 2) continue; // мінімум 2 рядки head
+    // Вимірюємо tail-рядки: клон із tail на тій же ширині
+    const clone = block.cloneNode(false);
+    clone.textContent = tailText;
+    clone.style.visibility = 'hidden';
+    clone.style.position = 'absolute';
+    clone.style.left = '-9999px';
+    clone.removeAttribute('data-split-id');
+    pc.appendChild(clone);
+    const tailLines = countTextLines(clone);
+    pc.removeChild(clone);
+    if (tailLines < 2) continue;
+    // Commit
+    const splitId = 'sp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    block.setAttribute('data-split-id', splitId);
+    block.classList.add('dialogue-split');
+    const tail = document.createElement('div');
+    tail.className = 'dialogue dialogue-split';
+    tail.setAttribute('data-type', 'dialogue');
+    tail.setAttribute('data-placeholder', (typeof PLACEHOLDERS !== 'undefined' && PLACEHOLDERS.dialogue) || '');
+    tail.setAttribute('data-split-id', splitId);
+    tail.textContent = tailText;
+    return { tail };
+  }
+  block.textContent = originalText; // відновити
+  return null;
+}
+
+function lastBlock() { const a = flattenBlocks(); return a[a.length - 1] || null; }
+function firstBlock() { return flattenBlocks()[0] || null; }
+
+function currentPageContent() {
+  const lastPage = editor.querySelector(':scope > .page:last-child');
+  if (lastPage) return lastPage.querySelector(':scope > .page-content');
+  return null;
+}
+
+function appendBlock(div) {
+  // Додає блок у поточну (останню) сторінку. Якщо сторінок немає — створює першу.
+  let pc = currentPageContent();
+  if (!pc) {
+    const page = createEmptyPage();
+    editor.appendChild(page);
+    pc = page.querySelector(':scope > .page-content');
+  }
+  pc.appendChild(div);
+}
+
+function wrapLooseBlocksIntoPages() {
+  // Якщо під editor є прямі блоки (не обгорнуті в .page) — збираємо їх у одну початкову сторінку.
+  const loose = [];
+  for (const child of Array.from(editor.children)) {
+    if (child.nodeType !== 1) continue;
+    if (child.classList.contains('page')) continue;
+    loose.push(child);
+  }
+  if (!loose.length) return;
+  // Видаляємо loose з editor, додаємо у перший page-content (створюючи якщо немає).
+  let firstPage = editor.querySelector(':scope > .page');
+  if (!firstPage) {
+    firstPage = createEmptyPage();
+    editor.insertBefore(firstPage, editor.firstChild);
+  }
+  const pc = firstPage.querySelector(':scope > .page-content');
+  for (const el of loose) pc.appendChild(el);
+}
+
+function isOverflowing(pageContent) {
+  // Враховуємо subpixel rounding
+  return pageContent.scrollHeight > pageContent.clientHeight + 1;
+}
+
+// --- Збереження/відновлення курсора (split-aware) ---
+function saveCursorState() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return null;
+  const range = sel.getRangeAt(0);
+  if (!editor.contains(range.startContainer)) return null;
+  let node = range.startContainer;
+  if (node.nodeType === 3) node = node.parentNode;
+  let block = node;
+  while (block && block.parentElement && !block.parentElement.classList.contains('page-content')) {
+    block = block.parentElement;
+  }
+  if (!block || !block.parentElement || !block.parentElement.classList.contains('page-content')) return null;
+  // Локальний зсув в цьому фізичному блоці
+  const pre = document.createRange();
+  pre.selectNodeContents(block);
+  pre.setEnd(range.startContainer, range.startOffset);
+  let localOffset = pre.toString().length;
+  // Визначаємо логічний якір + логічний зсув (враховуючи split)
+  const splitId = block.getAttribute('data-split-id');
+  let anchor = block;
+  if (splitId) {
+    const parts = Array.from(editor.querySelectorAll('[data-split-id="' + splitId + '"]'));
+    anchor = parts[0];
+    let sum = 0;
+    for (const p of parts) {
+      if (p === block) break;
+      sum += p.textContent.length + 1; // +1 — віртуальний пробіл між частинами
+    }
+    localOffset += sum;
+  }
+  const logical = collectLogicalAnchors();
+  const idx = logical.indexOf(anchor);
+  if (idx === -1) return null;
+  return { idx, offset: localOffset };
+}
+
+function restoreCursorState(saved) {
+  if (!saved) return;
+  const logical = collectLogicalAnchors();
+  if (!logical.length) return;
+  const anchor = logical[Math.min(saved.idx, logical.length - 1)];
+  if (!anchor) return;
+  // Якщо anchor з split — збираємо всі частини
+  const splitId = anchor.getAttribute('data-split-id');
+  const parts = splitId
+    ? Array.from(editor.querySelectorAll('[data-split-id="' + splitId + '"]'))
+    : [anchor];
+  let remaining = saved.offset;
+  let targetNode = null, targetOffset = 0;
+  for (let pi = 0; pi < parts.length; pi++) {
+    const p = parts[pi];
+    const textLen = p.textContent.length;
+    if (remaining <= textLen) {
+      const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+      let t;
+      while ((t = walker.nextNode())) {
+        const len = t.nodeValue.length;
+        if (remaining <= len) { targetNode = t; targetOffset = remaining; break; }
+        remaining -= len;
+      }
+      if (!targetNode) { targetNode = p; targetOffset = p.childNodes.length; }
+      break;
+    }
+    remaining -= (textLen + 1); // +1 — віртуальний пробіл
+  }
+  if (!targetNode) {
+    const last = parts[parts.length - 1];
+    targetNode = last;
+    targetOffset = last.childNodes.length;
+  }
+  try {
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.setStart(targetNode, targetOffset);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch {}
+}
+
+// --- Номери сторінок ---
+function numberPages() {
+  const pages = editor.querySelectorAll(':scope > .page');
+  pages.forEach((p, i) => {
+    // Видаляємо старі
+    const old = p.querySelector(':scope > .page-number');
+    if (old) old.remove();
+    if (i === 0) return; // перша сторінка без номера (стандарт)
+    const num = document.createElement('div');
+    num.className = 'page-number';
+    num.setAttribute('contenteditable', 'false');
+    num.textContent = (i + 1) + '.';
+    p.appendChild(num);
+  });
+}
+
+// --- Основна функція пагінації ---
+function repaginate() {
+  if (PAGINATOR._paginating) return;
+  if (!editor) return;
+  if (document.body.getAttribute('data-view') !== 'editor') return;
+  PAGINATOR._paginating = true;
+  try {
+    const cursor = saveCursorState();
+    // Спершу об'єднуємо попередні split-частини dialogue — працюємо з логічним вихідним контентом.
+    mergeDialogueSplits();
+    wrapLooseBlocksIntoPages();
+    const blocks = flattenBlocks();
+    if (!blocks.length) {
+      editor.innerHTML = '';
+      const page = createEmptyPage();
+      editor.appendChild(page);
+      numberPages();
+      return;
+    }
+    // Від'єднуємо всі блоки, потім наповнюємо сторінки наново
+    const frag = document.createDocumentFragment();
+    for (const b of blocks) frag.appendChild(b);
+    editor.innerHTML = '';
+    let page = createEmptyPage();
+    editor.appendChild(page);
+    let pc = page.querySelector(':scope > .page-content');
+    for (const block of blocks) {
+      pc.appendChild(block);
+      if (!isOverflowing(pc)) continue;
+      // Блок не вміщується — спробуємо mid-split для dialogue
+      if (block.getAttribute('data-type') === 'dialogue') {
+        const res = trySplitDialogue(block, pc);
+        if (res) {
+          // head залишається в pc, tail — на новій сторінці
+          page = createEmptyPage();
+          editor.appendChild(page);
+          pc = page.querySelector(':scope > .page-content');
+          pc.appendChild(res.tail);
+          continue;
+        }
+      }
+      // Переносимо весь блок на нову сторінку
+      pc.removeChild(block);
+      page = createEmptyPage();
+      editor.appendChild(page);
+      pc = page.querySelector(':scope > .page-content');
+      pc.appendChild(block);
+    }
+    applyIndustryRules();
+    numberPages();
+    restoreCursorState(cursor);
+  } finally {
+    PAGINATOR._paginating = false;
+    if (PAGINATOR._scheduleTimer) { clearTimeout(PAGINATOR._scheduleTimer); PAGINATOR._scheduleTimer = null; }
+  }
+}
+
+// --- Галузеві правила: сирота scene-heading, character/dialogue не рвемо ---
+function applyIndustryRules() {
+  // Прохід по сторінках: якщо остання група блоків на сторінці порушує правило — переносимо на наступну.
+  const pages = Array.from(editor.querySelectorAll(':scope > .page'));
+  for (let i = 0; i < pages.length - 1; i++) {
+    const curPc = pages[i].querySelector(':scope > .page-content');
+    const nextPc = pages[i + 1].querySelector(':scope > .page-content');
+    if (!curPc || !nextPc) continue;
+    const curBlocks = Array.from(curPc.children).filter((c) => !isPaginatorSynthetic(c));
+    if (!curBlocks.length) continue;
+    const last = curBlocks[curBlocks.length - 1];
+    const lastType = last.getAttribute('data-type');
+    // Правило: scene-heading не лишається одна внизу — переносимо
+    // Правило: character не відривається від dialogue
+    if (lastType === 'scene-heading' || lastType === 'character') {
+      nextPc.insertBefore(last, nextPc.firstChild);
+    }
+  }
+  // Вставка (ДАЛІ) / (ПРОД.) при розриві dialogue
+  for (let i = 0; i < pages.length - 1; i++) {
+    const curPc = pages[i].querySelector(':scope > .page-content');
+    const nextPc = pages[i + 1].querySelector(':scope > .page-content');
+    if (!curPc || !nextPc) continue;
+    const nextFirst = Array.from(nextPc.children).find((c) => !isPaginatorSynthetic(c));
+    if (!nextFirst) continue;
+    const firstType = nextFirst.getAttribute('data-type');
+    // Якщо вгорі нової сторінки — dialogue або parenthetical, а внизу попередньої — dialogue з того ж персонажа
+    if (firstType === 'dialogue' || firstType === 'parenthetical') {
+      const curBlocks = Array.from(curPc.children).filter((c) => !isPaginatorSynthetic(c));
+      const lastBlk = curBlocks[curBlocks.length - 1];
+      if (!lastBlk) continue;
+      const lastType = lastBlk.getAttribute('data-type');
+      if (lastType === 'dialogue' || lastType === 'parenthetical') {
+        // Знаходимо character (шукаємо назад)
+        const all = flattenBlocks();
+        const idx = all.indexOf(lastBlk);
+        let charName = '';
+        for (let j = idx - 1; j >= 0; j--) {
+          if (all[j].getAttribute('data-type') === 'character') { charName = all[j].textContent.trim(); break; }
+          if (all[j].getAttribute('data-type') === 'scene-heading') break;
+        }
+        // Додаємо (ДАЛІ) у кінець поточної
+        const more = document.createElement('div');
+        more.className = 'more-marker';
+        more.setAttribute('contenteditable', 'false');
+        more.textContent = '(ДАЛІ)';
+        curPc.appendChild(more);
+        // Додаємо CHAR (ПРОД.) на початок наступної
+        if (charName) {
+          const contd = document.createElement('div');
+          contd.className = 'contd-marker';
+          contd.setAttribute('contenteditable', 'false');
+          contd.style.textAlign = 'center';
+          contd.textContent = charName.replace(/\s*\(.*?\)\s*$/, '') + ' (ПРОД.)';
+          nextPc.insertBefore(contd, nextPc.firstChild);
+        }
+      }
+    }
+  }
+}
+
+function scheduleRepaginate(delay = 200) {
+  if (PAGINATOR._paginating) return;
+  if (PAGINATOR._scheduleTimer) clearTimeout(PAGINATOR._scheduleTimer);
+  PAGINATOR._scheduleTimer = setTimeout(() => {
+    PAGINATOR._scheduleTimer = null;
+    repaginate();
+  }, delay);
+}
+
 const PARENTHETICALS = [
   '(тихо)', '(голосно)', '(пошепки)', '(про себе)', '(сміється)',
   '(пауза)', '(убік)', '(з досадою)', '(здивовано)', '(сердито)',
@@ -948,8 +1569,85 @@ const PARENTHETICALS = [
 
 // --- Google Sign-In ---
 const GOOGLE_CLIENT_ID = '512845231835-580pobin00t2t71m25i5rdsci6hjhuvv.apps.googleusercontent.com';
-const API_BASE = 'https://scenario-editor-api.contora.workers.dev';
+const API_BASE_PROD = 'https://scenario-editor-api.contora.workers.dev';
+const API_BASE_DEV = 'http://localhost:8787';
 const USER_KEY = 'scenario_google_user';
+const DEV_TOKEN = 'DEV';
+const IS_DEV_HOST = ['localhost', '127.0.0.1', '0.0.0.0'].includes(location.hostname);
+function isDevSession() { return currentUser?.token === DEV_TOKEN; }
+function apiBase() { return isDevSession() ? API_BASE_DEV : API_BASE_PROD; }
+
+// --- Налаштування програми ---
+const SETTINGS_KEY = 'scenario_settings';
+const DEFAULT_SETTINGS = { pageFormat: 'A4' };
+let appSettings = { ...DEFAULT_SETTINGS };
+try {
+  const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+  if (saved && typeof saved === 'object') appSettings = { ...DEFAULT_SETTINGS, ...saved };
+} catch {}
+
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings)); } catch {}
+}
+function applySettings() {
+  const wrap = document.getElementById('editorWrap');
+  if (wrap) wrap.setAttribute('data-page-format', appSettings.pageFormat);
+  if (typeof repaginate === 'function') repaginate();
+}
+applySettings();
+
+function openSettingsDialog() {
+  dlgBox.classList.add('dlg-settings');
+  dlgBox.innerHTML = `
+    <div class="dlg-body">
+      <div class="dlg-title">Налаштування</div>
+      <div class="dlg-section">
+        <div class="dlg-section-title">Формат сторінки</div>
+        <div class="opt-row" data-group="pageFormat">
+          <div class="opt" data-value="A4">
+            <div class="opt-title">A4</div>
+            <div class="opt-sub">210 × 297 мм · укр. стандарт</div>
+          </div>
+          <div class="opt" data-value="Letter">
+            <div class="opt-title">US Letter</div>
+            <div class="opt-sub">8.5 × 11 ″ · Hollywood</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dlg-footer">
+      <button class="dlg-btn primary" id="settingsCloseBtn">Готово</button>
+    </div>
+  `;
+  const draft = { ...appSettings };
+  dlgBox.querySelectorAll('.opt-row').forEach((row) => {
+    const group = row.dataset.group;
+    row.querySelectorAll('.opt').forEach((opt) => {
+      if (opt.dataset.value === draft[group]) opt.classList.add('selected');
+      opt.addEventListener('click', () => {
+        row.querySelectorAll('.opt').forEach((o) => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        draft[group] = opt.dataset.value;
+      });
+    });
+  });
+  const close = () => {
+    appSettings = { ...appSettings, ...draft };
+    saveSettings();
+    applySettings();
+    dlgBackdrop.classList.remove('open');
+    dlgBox.classList.remove('dlg-settings');
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); close(); }
+  };
+  document.addEventListener('keydown', onKey);
+  dlgBox.querySelector('#settingsCloseBtn').addEventListener('click', close);
+  dlgBackdrop.classList.add('open');
+}
+
+document.getElementById('topSettingsBtn')?.addEventListener('click', openSettingsDialog);
 
 function decodeJwt(token) {
   const base64Url = token.split('.')[1];
@@ -1002,12 +1700,30 @@ function handleGoogleCredential(response) {
   syncFromCloud();
 }
 
+function devLogin() {
+  currentUser = {
+    sub: 'dev-local',
+    email: 'dev@local',
+    name: 'Dev User',
+    picture: '',
+    token: DEV_TOKEN,
+  };
+  localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+  document.body.classList.add('dev-mode');
+  projects = loadProjects();
+  activeId = localStorage.getItem(activeKey()) || Object.keys(projects)[0] || null;
+  dict = (activeId && projects[activeId]?.dict) || { characters: {}, locations: {}, phrases: {} };
+  updateUserUi();
+  setView('projects');
+}
+
 function signOut() {
   // Flush усе незбережене перед виходом (#5)
   if (activeId && projects[activeId]) save();
   flushAll();
   currentUser = null;
   localStorage.removeItem(USER_KEY);
+  document.body.classList.remove('dev-mode');
   projects = {};
   activeId = null;
   editor.innerHTML = '';
@@ -1066,6 +1782,16 @@ window.addEventListener('load', () => {
 
 document.getElementById('btnSignOut').addEventListener('click', signOut);
 
+// Dev login (localhost only)
+if (IS_DEV_HOST) {
+  const devBtn = document.getElementById('devLoginBtn');
+  if (devBtn) {
+    devBtn.classList.add('visible');
+    devBtn.addEventListener('click', devLogin);
+  }
+}
+if (isDevSession()) document.body.classList.add('dev-mode');
+
 // --- Cloud sync ---
 async function apiFetch(path, options = {}) {
   if (!currentUser?.token) throw new Error('not_signed_in');
@@ -1080,7 +1806,7 @@ async function apiFetch(path, options = {}) {
   } catch (e) {
     if (e.message === 'token_expired') throw e;
   }
-  const res = await fetch(API_BASE + path, {
+  const res = await fetch(apiBase() + path, {
     ...options,
     headers: {
       'Authorization': 'Bearer ' + currentUser.token,
@@ -1146,6 +1872,8 @@ async function syncFromCloud() {
             const wasFocused = document.activeElement === editor;
             editor.innerHTML = full.content || '';
             if (typeof ensureAttrs === 'function') ensureAttrs();
+            wrapLooseBlocksIntoPages();
+            repaginate();
             if (wasFocused) editor.focus();
           }
         }
@@ -1188,12 +1916,13 @@ function scheduleCloudPush(id) {
 function flushImmediate(id) {
   if (!currentUser || !projects[id]) return;
   if (pushTimers.has(id)) { clearTimeout(pushTimers.get(id)); pushTimers.delete(id); }
-  const url = API_BASE + '/projects/' + id;
+  const base = apiBase();
+  const url = base + '/projects/' + id;
   const body = JSON.stringify(projects[id]);
   // Спроба через sendBeacon (працює навіть при закритті вкладки)
   if (navigator.sendBeacon) {
     const blob = new Blob([JSON.stringify({ ...projects[id], _token: currentUser.token })], { type: 'application/json' });
-    navigator.sendBeacon(API_BASE + '/projects/' + id + '?beacon=1&token=' + encodeURIComponent(currentUser.token), blob);
+    navigator.sendBeacon(base + '/projects/' + id + '?beacon=1&token=' + encodeURIComponent(currentUser.token), blob);
   }
   // Дублюємо звичайним fetch (не блокуюче)
   fetch(url, {
@@ -1283,7 +2012,7 @@ function cleanCharacterDict() {
 }
 
 function learnDict() {
-  for (const b of editor.children) {
+  for (const b of flattenBlocks()) {
     if (b.nodeType !== 1) continue;
     const type = b.getAttribute('data-type');
     const text = b.textContent.trim();
@@ -1317,7 +2046,7 @@ const DEFAULT_CONTENT = `
 editor.innerHTML = (activeId && projects[activeId]?.content) || '';
 
 function ensureAttrs() {
-  for (const b of editor.children) {
+  for (const b of flattenBlocks()) {
     if (b.nodeType !== 1) continue;
     let type = b.getAttribute('data-type');
     if (!type) {
@@ -1330,15 +2059,18 @@ function ensureAttrs() {
 }
 cleanCharacterDict();
 if (activeId && projects[activeId]) { ensureAttrs(); styleAllAnnotations(); learnDict(); }
+// Первинна пагінація — обгортаємо flat контент у сторінки
+wrapLooseBlocksIntoPages();
+repaginate();
 
 function save() {
   if (!activeId || !projects[activeId]) return;
   // Не перетираємо контент якщо ми не на view редактора
   if (document.body.getAttribute('data-view') !== 'editor') return;
-  // Не перетираємо якщо editor порожній а проект має контент (захист від випадкового стирання)
-  const html = editor.innerHTML;
-  if (!html.trim() && projects[activeId].content && projects[activeId].content.trim()) return;
-  projects[activeId].content = html;
+  // Серіалізуємо логічні блоки (split-частини об'єднуються через serializeSource — неруйнівно)
+  const flat = serializeSource();
+  if (!flat.trim() && projects[activeId].content && projects[activeId].content.trim()) return;
+  projects[activeId].content = flat;
   projects[activeId].updated = Date.now();
   saveProjects(projects);
   if (currentUser) scheduleCloudPush(activeId);
@@ -1352,6 +2084,11 @@ const countEl = document.getElementById('projectsCount');
 function setView(name) {
   document.body.setAttribute('data-view', name);
   if (name === 'projects') renderProjects();
+  if (name === 'editor') {
+    // Сторінки мають фіксовану висоту і потребують репагінації після того, як стали видимими
+    wrapLooseBlocksIntoPages();
+    if (typeof repaginate === 'function') repaginate();
+  }
   if (typeof updateBlockChip === 'function') updateBlockChip();
 }
 
@@ -1515,6 +2252,8 @@ function switchProject(id) {
   if (typeof styleAllAnnotations === 'function') styleAllAnnotations();
   if (typeof hideSuggestions === 'function') hideSuggestions();
   updateToggleLabel();
+  wrapLooseBlocksIntoPages();
+  repaginate();
   updateHint();
 }
 
@@ -1592,7 +2331,7 @@ function getCurrentBlock() {
   if (!sel.rangeCount) return null;
   let node = sel.getRangeAt(0).startContainer;
   while (node && node !== editor) {
-    if (node.nodeType === 1 && node.parentNode === editor) return node;
+    if (node.nodeType === 1 && node.parentNode && node.parentNode.classList && node.parentNode.classList.contains('page-content')) return node;
     node = node.parentNode;
   }
   return null;
@@ -1600,7 +2339,7 @@ function getCurrentBlock() {
 
 function setBlockType(block, type) {
   // Захист: ніколи не міняємо тип у editor-контейнера
-  if (!block || block === editor || !editor.contains(block) || block.parentNode !== editor) {
+  if (!block || block === editor || !editor.contains(block) || !block.parentNode?.classList?.contains('page-content')) {
     console.warn('setBlockType: invalid target', block);
     return;
   }
@@ -1864,11 +2603,9 @@ function splitBlocksFromText(text) {
 
 function reformatEditorContent() {
   const lines = [];
-  for (const child of editor.children) {
+  for (const child of flattenBlocks()) {
     if (child.nodeType !== 1) continue;
-    // textContent з блока + штучний перенос
     const html = child.innerHTML;
-    // Перетворюємо <br> у \n
     const text = html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
     const decoded = (() => { const d = document.createElement('div'); d.innerHTML = text; return d.textContent; })();
     lines.push(...decoded.split(/\n/));
@@ -1882,74 +2619,259 @@ function reformatEditorContent() {
     div.setAttribute('data-type', b.type);
     div.setAttribute('data-placeholder', PLACEHOLDERS[b.type] || '');
     div.textContent = b.text;
-    editor.appendChild(div);
+    appendBlock(div);
   }
   styleAllAnnotations();
+  repaginate();
   save();
   updateHint();
   updateBlockChip();
 }
 
+function splitTextByParagraphs(text, paragraphsPerChunk = 2) {
+  const paragraphs = text.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+  if (!paragraphs.length) return [text];
+  const chunks = [];
+  for (let i = 0; i < paragraphs.length; i += paragraphsPerChunk) {
+    chunks.push(paragraphs.slice(i, i + paragraphsPerChunk).join('\n\n'));
+  }
+  return chunks;
+}
+
 async function aiReformatContent() {
   if (!currentUser?.token) { await dlgAlert('Увійдіть щоб використовувати AI', 'Помилка'); return; }
-  const lines = [];
-  for (const child of editor.children) {
+  mergeDialogueSplits();
+  // Збираємо текст блок-за-блоком; кожен блок = окремий "абзац" з точки зору AI
+  const blockTexts = [];
+  for (const child of flattenBlocks()) {
     if (child.nodeType !== 1) continue;
     const html = child.innerHTML;
-    const text = html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
-    const decoded = (() => { const d = document.createElement('div'); d.innerHTML = text; return d.textContent; })();
-    lines.push(...decoded.split(/\n/));
+    const stripped = html.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '');
+    const decoded = (() => { const d = document.createElement('div'); d.innerHTML = stripped; return d.textContent; })();
+    const t = decoded.replace(/\s+/g, ' ').trim();
+    if (t) blockTexts.push(t);
   }
-  const fullText = lines.join('\n');
-  if (!fullText.trim()) { await dlgAlert('Документ порожній', 'Помилка'); return; }
+  if (!blockTexts.length) { await dlgAlert('Документ порожній', 'Помилка'); return; }
 
-  const btn = document.getElementById('btnReformat');
-  const origText = btn.textContent;
-  btn.textContent = '  AI аналізує...';
-  btn.disabled = true;
+  const btn = document.getElementById('aiFmtBtn');
+  const origText = btn ? btn.textContent : '';
+  const badge = document.getElementById('aiProgressBadge');
+  const progressText = document.getElementById('aiProgressText');
 
+  // AI тільки класифікує тип блоку. Текст зберігаємо незмінним — ризик втратити зміст = 0.
+  // Контекст передаємо ВЖЕ КЛАСИФІКОВАНИМ (тип+текст попередніх блоків) — AI чітко розуміє межі сцен/реплік.
+  const SMALL_DOC_LIMIT = 25;
+  const BLOCKS_PER_CHUNK = 15;
+  const CONTEXT_BLOCKS = 3;
+  const chunks = [];
+  if (blockTexts.length <= SMALL_DOC_LIMIT) {
+    chunks.push({ lines: blockTexts });
+  } else {
+    for (let i = 0; i < blockTexts.length; i += BLOCKS_PER_CHUNK) {
+      const main = blockTexts.slice(i, i + BLOCKS_PER_CHUNK);
+      chunks.push({ lines: main, _ctxStart: Math.max(0, i - CONTEXT_BLOCKS), _ctxEnd: i });
+    }
+  }
+
+  // Визначає чи parenthetical є voice-extension (ЗК/ПЗ/V.O./O.S./ПРОД.). Повертає нормалізований код або null.
+  // ВАЖЛИВО: ПЗ перевіряємо ПЕРЕД ЗК, бо "ПОЗАКАДРОВ" містить "ЗАКАДРОВ" як підрядок.
+  const voiceExtensionCode = (text) => {
+    const s = String(text || '').trim();
+    const m = s.match(/^\(([^)]+)\)\s*$/);
+    if (!m) return null;
+    const inner = m[1].toUpperCase().replace(/\s+/g, ' ').trim();
+    if (/ПОЗАКАДРОВ|(?:^|\W)ПЗ(?:\W|$)|O\.?\s*S\.?|OFF\s*SCREEN|OFFSCREEN/.test(inner)) return 'ПЗ';
+    if (/ЗАКАДРОВ|(?:^|\W)ЗК(?:\W|$)|V\.?\s*O\.?|VOICE\s*OVER/.test(inner)) return 'ЗК';
+    if (/CONT'?D|ПРОД\.?/.test(inner)) return 'ПРОД.';
+    return null;
+  };
+
+  // Нормалізація імені character: "Марк(ЗК-закадровий голос)" → "МАРК (ЗК)"
+  const normalizeCharacter = (text) => {
+    const m = text.match(/^([^(]*?)(?:\s*\(([^)]*)\))?\s*$/);
+    if (!m) return text.toUpperCase();
+    const name = m[1].trim().toUpperCase();
+    let paren = (m[2] || '').trim();
+    if (!paren) return name;
+    const pU = paren.toUpperCase();
+    if (pU.startsWith('ЗК')) paren = 'ЗК';
+    else if (pU.startsWith('ПЗ')) paren = 'ПЗ';
+    else if (pU.startsWith('V.O') || pU.startsWith('VO')) paren = 'V.O.';
+    else if (pU.startsWith('O.S') || pU.startsWith('OS')) paren = 'O.S.';
+    else paren = pU;
+    return `${name} (${paren})`;
+  };
+
+  // Увімкнути processing-режим: shimmer по тексту + блокування вводу + бейдж прогресу
+  editor.classList.add('ai-processing');
+  editor.setAttribute('contenteditable', 'false');
+  if (btn) { btn.textContent = '…'; btn.disabled = true; }
+  if (badge) badge.classList.add('visible');
+  const setProgress = (i) => {
+    if (progressText) progressText.textContent = `AI: ${i}/${chunks.length}`;
+  };
+  setProgress(0);
+
+  // Очищаємо редактор — чанки наповнюватимуть його поступово
+  editor.innerHTML = '';
+
+  // Накопичувач класифікованих блоків — даватимемо як контекст наступним чанкам
+  const classifiedSoFar = []; // [{type, text}]
+  let failedDetail = null;
   try {
-    const res = await fetch(API_BASE + '/reformat', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + currentUser.token,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ text: fullText }),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.blocks) {
-      const detail = data.detail || '';
-      throw new Error((data.error || 'AI error') + (detail ? '\n' + detail : ''));
-    }
+    for (let i = 0; i < chunks.length; i++) {
+      // Формуємо typed-контекст з уже класифікованих блоків (останні CONTEXT_BLOCKS)
+      const ctxStart = chunks[i]._ctxStart;
+      const ctxEnd = chunks[i]._ctxEnd;
+      let contextTyped = null;
+      if (ctxStart !== undefined && ctxEnd !== undefined && ctxEnd > ctxStart) {
+        contextTyped = classifiedSoFar.slice(ctxStart, ctxEnd).map((b) => ({ type: b.type, text: b.text }));
+      }
+      const payload = { lines: chunks[i].lines };
+      if (contextTyped && contextTyped.length) payload.context = contextTyped;
 
-    editor.innerHTML = '';
-    for (const b of data.blocks) {
-      const div = document.createElement('div');
-      div.className = b.type;
-      div.setAttribute('data-type', b.type);
-      div.setAttribute('data-placeholder', PLACEHOLDERS[b.type] || '');
-      div.textContent = b.text;
-      editor.appendChild(div);
+      const res = await fetch(apiBase() + '/reformat', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + currentUser.token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.types) {
+        failedDetail = (data.error || 'AI error') + (data.detail ? ('\n' + data.detail) : '');
+        break;
+      }
+      const types = data.types.slice();
+      const sourceLines = chunks[i].lines;
+      // Пост-фікси — детерміновані правила, що виправляють типові AI-помилки
+      let prevType = classifiedSoFar.length ? classifiedSoFar[classifiedSoFar.length - 1].type : null;
+      const wordCount = (s) => String(s || '').trim().split(/\s+/).filter(Boolean).length;
+      const hasSentencePunct = (s) => /[.!?…]/.test(String(s || ''));
+      const isCastListLike = (s) => /\(\s*\d+\s*\)/.test(String(s));
+      // Евристика: рядок виглядає як ім'я персонажа (≤3 слова, кожне починається з великої літери, без речення)
+      const looksLikeCharacter = (s) => {
+        const str = String(s || '').trim();
+        if (!str) return false;
+        if (hasSentencePunct(str)) return false;
+        if (isCastListLike(str)) return false;
+        // Видаляємо extension у дужках: МАРК (ЗК), Dr. Smith
+        const base = str.replace(/\([^)]*\)/g, '').trim();
+        const words = base.split(/\s+/).filter(Boolean);
+        if (!words.length || words.length > 3) return false;
+        for (const w of words) {
+          const first = w.match(/\p{L}/u)?.[0];
+          if (!first) return false;
+          if (first !== first.toUpperCase()) return false; // хоч одне слово починається з маленької → не ім'я
+        }
+        return true;
+      };
+
+      for (let k = 0; k < types.length; k++) {
+        const text = sourceLines[k] || '';
+        const trimmed = text.trim();
+        const nameLike = looksLikeCharacter(text);
+        const baseForCaps = text.replace(/\([^)]*\)/g, '').trim();
+        const lettersOnly = baseForCaps.replace(/[^\p{L}]/gu, '');
+        const isAllCaps = lettersOnly.length >= 2 && lettersOnly === lettersOnly.toUpperCase();
+        const wc = wordCount(text);
+        const endsWithQuestion = /[?!…]$/.test(trimmed);
+        const endsWithPeriod = /\.$/.test(trimmed);
+        // Починається з власної назви в 3-й особі: "Марк був...", "Леся раптом..." — дескриптивний action.
+        // Перше слово — велика буква, потім малі + пробіл + мала літера (початок наступного слова).
+        const startsWithProperName = /^[А-ЯЁІЇЄA-Z][а-яёіїєa-zʼ']+\s+[а-яёіїєa-z]/.test(trimmed);
+
+        // Фікс -1 (найпріоритетніше): після character коротка не-ALL-CAPS репліка (≤2 слова) → dialogue.
+        // Ловить "Ні", "Так", "Марк" — AI часто плутає.
+        if (prevType === 'character' && wc <= 2 && !isAllCaps && types[k] !== 'parenthetical' && types[k] !== 'scene-heading') {
+          types[k] = 'dialogue';
+        }
+        // Фікс 0: коротке ALL-CAPS імʼя → character. Якщо prev=character/parenthetical — це CAPS-репліка (dialogue)
+        else if (nameLike && isAllCaps && types[k] !== 'scene-heading' && types[k] !== 'transition' && types[k] !== 'cast-list') {
+          types[k] = (prevType === 'character' || prevType === 'parenthetical') ? 'dialogue' : 'character';
+        }
+        // Фікс 1: AI сказав "character", але за ознаками це НЕ імʼя → action (default) або dialogue (якщо prev=character)
+        else if (types[k] === 'character' && !nameLike) {
+          types[k] = prevType === 'character' ? 'dialogue' : 'action';
+        }
+        // Фікс 2: після character AI сказав "action" → більшість таких випадків — реплика, action лишаємо лише якщо явно опис.
+        // "Марк був..." / "Леся раптом..." — startsWithProperName + period → справжній action (опис).
+        // Все інше після character → dialogue (репліка персонажа).
+        else if (prevType === 'character' && types[k] === 'action') {
+          if (startsWithProperName && endsWithPeriod && wc >= 3) {
+            // залишається action (описовий текст)
+          } else {
+            types[k] = 'dialogue';
+          }
+        }
+        // Фікс 3: після character AI сказав "dialogue" — довіряємо (все правильно)
+        // Фікс 4: якщо рядок закінчується на ? або ! і AI сказав action після character/dialogue → це скоріше dialogue
+        else if ((prevType === 'character' || prevType === 'dialogue') && types[k] === 'action' && endsWithQuestion) {
+          types[k] = 'dialogue';
+        }
+
+        prevType = types[k];
+      }
+      for (let k = 0; k < sourceLines.length; k++) {
+        const type = types[k] || 'action';
+        let text = sourceLines[k];
+
+        // Індустріальний стандарт: voice-extension (ЗК/V.O./O.S./ПЗ) не окрема "ремарка",
+        // а частина character-рядка: "МАРК (ЗК)". Мержимо з попереднім character.
+        if (type === 'parenthetical') {
+          const ext = voiceExtensionCode(text);
+          if (ext) {
+            const last = lastBlock();
+            const lastEntry = classifiedSoFar[classifiedSoFar.length - 1];
+            if (last && last.getAttribute('data-type') === 'character' && !/\(/.test(last.textContent)) {
+              const baseName = last.textContent.trim();
+              const merged = normalizeCharacter(baseName + ' (' + ext + ')');
+              last.textContent = merged;
+              if (lastEntry) lastEntry.text = merged;
+              continue; // пропускаємо створення parenthetical-блоку
+            }
+          }
+        }
+
+        if (type === 'character') text = normalizeCharacter(text);
+        const div = document.createElement('div');
+        div.className = type;
+        div.setAttribute('data-type', type);
+        div.setAttribute('data-placeholder', PLACEHOLDERS[type] || '');
+        div.textContent = text;
+        appendBlock(div);
+        classifiedSoFar.push({ type, text });
+      }
+      styleAllAnnotations();
+      repaginate();
+      setProgress(i + 1);
     }
-    styleAllAnnotations();
-    save();
-    updateHint();
-    if (typeof updateBlockChip === 'function') updateBlockChip();
+    if (!failedDetail) {
+      save();
+      updateHint();
+      if (typeof updateBlockChip === 'function') updateBlockChip();
+    }
   } catch (e) {
     console.error('AI reformat error', e);
-    if (e.message.includes('invalid_token') || e.message.includes('unauthorized') || e.message.includes('token_expired')) {
-      const ok = await dlgConfirm('Сесія закінчилась. Перелогінитись?', { title: 'Потрібна авторизація', okLabel: 'Увійти знову' });
-      if (ok) {
-        signOut();
-        // Google One Tap auto-prompts on login screen
-      }
-    } else {
-      await dlgAlert('Помилка AI: ' + e.message, 'Помилка');
-    }
+    failedDetail = e.message;
   } finally {
-    btn.textContent = origText;
-    btn.disabled = false;
+    // Вимикаємо processing-режим
+    editor.classList.remove('ai-processing');
+    editor.setAttribute('contenteditable', 'true');
+    if (btn) { btn.textContent = origText; btn.disabled = false; }
+    if (badge) badge.classList.remove('visible');
+  }
+
+  if (failedDetail) {
+    if (failedDetail.includes('invalid_token') || failedDetail.includes('unauthorized') || failedDetail.includes('token_expired')) {
+      const ok = await dlgConfirm('Сесія закінчилась. Перелогінитись?', { title: 'Потрібна авторизація', okLabel: 'Увійти знову' });
+      if (ok) signOut();
+    } else if (failedDetail.includes('all_keys_throttled')) {
+      await dlgAlert('Ліміт AI вичерпано по всіх ключах. Спробуйте через декілька хвилин.', 'Rate limit');
+    } else {
+      await dlgAlert('Помилка AI: ' + failedDetail.slice(0, 400), 'Помилка');
+    }
   }
 }
 
@@ -1979,7 +2901,7 @@ editor.addEventListener('paste', (e) => {
   const blocks = splitBlocksFromText(text);
   if (!blocks.length) return;
 
-  let insertAfter = getCurrentBlock() || editor.lastElementChild;
+  let insertAfter = getCurrentBlock() || lastBlock();
   // Якщо поточний блок порожній — перевикористовуємо його
   if (insertAfter && !insertAfter.textContent.trim() && blocks.length > 0) {
     const first = blocks.shift();
@@ -1994,11 +2916,12 @@ editor.addEventListener('paste', (e) => {
     div.setAttribute('data-type', b.type);
     div.setAttribute('data-placeholder', PLACEHOLDERS[b.type] || '');
     div.textContent = b.text;
-    if (insertAfter && insertAfter.parentNode === editor) insertAfter.after(div);
-    else editor.appendChild(div);
+    if (insertAfter && insertAfter.parentNode?.classList?.contains('page-content')) insertAfter.after(div);
+    else appendBlock(div);
     insertAfter = div;
   }
   if (insertAfter) setCaretToEnd(insertAfter);
+  scheduleRepaginate(50);
   save();
   updateHint();
   updateBlockChip();
@@ -2081,9 +3004,9 @@ function styleAllAnnotations() {
     if (!text) continue;
     // Вже має span.ann — пропускаємо
     if (block.querySelector('.ann')) continue;
-    const m = text.match(/^(.+?)(\s*\([А-ЯЁІЇЄҐA-Zа-яa-z'.]+\)\s*)$/);
+    const m = text.match(/^(.+?)(\s*\([А-ЯЁІЇЄҐA-Zа-яa-z'. ]+\)\s*)$/);
     if (m) {
-      block.innerHTML = m[1] + '<span class="ann">' + m[2].trim() + '</span>';
+      block.innerHTML = m[1].trim() + ' <span class="ann">' + m[2].trim() + '</span>';
     }
   }
 }
@@ -2111,12 +3034,13 @@ document.getElementById('sidePanel').addEventListener('mousedown', (e) => {
   const type = btn.dataset.fmt;
   let block = getCurrentBlock();
   if (!block) {
-    block = editor.lastElementChild;
-    if (!block) { block = document.createElement('div'); editor.appendChild(block); }
+    block = lastBlock();
+    if (!block) { block = document.createElement('div'); appendBlock(block); }
   }
   setBlockType(block, type);
   setCaretToEnd(block);
   editor.focus();
+  scheduleRepaginate(50);
   save();
   updateHint();
 });
@@ -2221,16 +3145,16 @@ toolbar.addEventListener('mousedown', (e) => {
   const type = btn.dataset.fmt;
   let block = getCurrentBlock();
   if (!block) {
-    // якщо в редакторі нема каретки — беремо останній блок або створюємо
-    block = editor.lastElementChild;
+    block = lastBlock();
     if (!block) {
       block = document.createElement('div');
-      editor.appendChild(block);
+      appendBlock(block);
     }
   }
   setBlockType(block, type);
   setCaretToEnd(block);
   editor.focus();
+  scheduleRepaginate(50);
   save();
   updateHint();
   updateBlockChip();
@@ -2304,6 +3228,7 @@ editor.addEventListener('input', () => {
   }
   save();
   updateHint();
+  scheduleRepaginate();
   const curBlock = getCurrentBlock();
   if (!curBlock) { hideSuggestions(); return; }
   const curText = curBlock.textContent.trim();
@@ -2341,36 +3266,54 @@ document.addEventListener('keydown', (e) => {
 });
 
 function exportPDF() {
-  // Рендер HTML → PDF через html2pdf (підтримує кирилицю)
+  const isLetter = appSettings.pageFormat === 'Letter';
+  const pageW = isLetter ? '8.5in' : '210mm';
+  const pageH = isLetter ? '11in'  : '297mm';
+  const padding = isLetter ? '1in 1in 1in 1.5in' : '25mm 15mm 25mm 30mm';
+  const jsFormat = isLetter ? 'letter' : 'a4';
+
   const container = document.createElement('div');
-  container.style.cssText = `
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 12pt;
-    line-height: 1.5;
-    color: #000;
-    background: #fff;
-    padding: 60pt 72pt;
-    width: 210mm;
-    box-sizing: border-box;
-  `;
+  container.style.cssText = `font-family: 'Courier New', Courier, monospace; font-size: 12pt; line-height: 1; color: #000; background: #fff;`;
+  // Групуємо блоки так, як вони зараз розподілені по сторінках у редакторі (включно з синтетичними маркерами MORE/ПРОД.)
+  const markersInPages = Array.from(editor.querySelectorAll(':scope > .page')).map((p) =>
+    Array.from(p.querySelectorAll(':scope > .page-content > *'))
+  );
+
   container.innerHTML = `<style>
-    .scene-heading { text-transform: uppercase; font-weight: bold; margin: 18pt 0 8pt; }
-    .action { margin: 8pt 0; }
-    .character { text-transform: uppercase; font-weight: bold; margin: 14pt 0 0 35%; }
-    .dialogue { margin: 2pt 20% 8pt 15%; }
+    .pdf-page { width: ${pageW}; min-height: ${pageH}; padding: ${padding}; box-sizing: border-box; page-break-after: always; }
+    .pdf-page:last-child { page-break-after: auto; }
+    .scene-heading { text-transform: uppercase; font-weight: bold; margin: 12pt 0 6pt; }
+    .action { margin: 6pt 0; }
+    .character { text-transform: uppercase; font-weight: bold; margin: 12pt 0 0 35%; }
+    .dialogue { margin: 2pt 20% 6pt 15%; }
     .parenthetical { font-style: italic; margin: 2pt 0 2pt 25%; }
     .transition { text-transform: uppercase; font-weight: bold; text-align: right; margin: 12pt 0; }
-  </style>` + editor.innerHTML;
+    .cast-list { font-weight: bold; margin: 6pt 0 6pt 30%; }
+    .shot { text-transform: uppercase; font-weight: bold; margin: 10pt 0; }
+    .super { text-transform: uppercase; margin: 10pt 0; }
+    .montage, .intercut, .flashback, .act-break { text-transform: uppercase; font-weight: bold; text-align: center; margin: 12pt 0; }
+    .more-marker { text-align: right; font-style: italic; margin: 6pt 20% 0 15%; }
+    .contd-marker { text-transform: uppercase; font-weight: bold; text-align: center; margin: 0 0 6pt; }
+  </style>`;
+  markersInPages.forEach((group) => {
+    const pageDiv = document.createElement('div');
+    pageDiv.className = 'pdf-page';
+    for (const b of group) {
+      if (b.classList.contains('page-number')) continue;
+      pageDiv.appendChild(b.cloneNode(true));
+    }
+    container.appendChild(pageDiv);
+  });
 
   document.body.appendChild(container);
   html2pdf()
     .set({
       margin: 0,
-      filename: 'сценарій.pdf',
+      filename: (projects[activeId]?.name || 'сценарій') + '.pdf',
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+      jsPDF: { unit: 'mm', format: jsFormat, orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], before: '.pdf-page', avoid: '[data-type="character"], [data-type="parenthetical"], [data-type="dialogue"]' },
     })
     .from(container)
     .save()
@@ -2379,19 +3322,33 @@ function exportPDF() {
 }
 
 function exportDOCX() {
+  // Збираємо блоки сторінково, між сторінками — Word page-break
+  const pageBreakHtml = '<br style="page-break-before: always; clear: both;"/>';
+  const pageEls = Array.from(editor.querySelectorAll(':scope > .page'));
+  const htmlParts = pageEls.map((p, i) => {
+    const inner = Array.from(p.querySelectorAll(':scope > .page-content > *'))
+      .filter((b) => !b.classList.contains('page-number'))
+      .map((b) => b.outerHTML)
+      .join('');
+    return (i === 0 ? '' : pageBreakHtml) + inner;
+  });
   const content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-body { font-family: 'Courier New', monospace; font-size: 12pt; }
-.scene-heading { text-transform: uppercase; font-weight: bold; margin: 18pt 0 8pt; }
-.action { margin: 8pt 0; }
-.character { text-transform: uppercase; font-weight: bold; margin: 14pt 0 0 35%; }
-.dialogue { margin: 2pt 20% 8pt 15%; }
+body { font-family: 'Courier New', monospace; font-size: 12pt; line-height: 1; }
+.scene-heading { text-transform: uppercase; font-weight: bold; margin: 12pt 0 6pt; }
+.action { margin: 6pt 0; }
+.character { text-transform: uppercase; font-weight: bold; margin: 12pt 0 0 35%; }
+.dialogue { margin: 2pt 20% 6pt 15%; }
 .parenthetical { font-style: italic; margin: 2pt 0 2pt 25%; }
 .transition { text-transform: uppercase; font-weight: bold; text-align: right; margin: 12pt 0; }
-</style></head><body>${editor.innerHTML}</body></html>`;
+.cast-list { font-weight: bold; margin: 6pt 0 6pt 30%; }
+.shot, .super, .montage, .intercut, .flashback, .act-break { text-transform: uppercase; font-weight: bold; margin: 10pt 0; }
+.more-marker { text-align: right; font-style: italic; margin: 6pt 20% 0 15%; }
+.contd-marker { text-transform: uppercase; font-weight: bold; text-align: center; margin: 0 0 6pt; }
+</style></head><body>${htmlParts.join('')}</body></html>`;
   const blob = htmlDocx.asBlob(content);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'сценарій.docx'; a.click();
+  a.href = url; a.download = (projects[activeId]?.name || 'сценарій') + '.docx'; a.click();
   URL.revokeObjectURL(url);
 }
 

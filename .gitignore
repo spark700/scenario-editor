@@ -1,0 +1,23 @@
+# Wrangler state & cache (local dev)
+.wrangler/
+worker/.wrangler/
+
+# Cloudflare Worker secrets — NEVER commit (contains API keys)
+worker/.dev.vars
+.dev.vars
+
+# Claude preview/worktree metadata
+.claude/worktrees/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

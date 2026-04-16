@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8086"],
+      "port": 8086
+    },
+    {
+      "name": "worker-api",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "dev", "--port", "8787", "--config", "worker/wrangler.toml"],
+      "port": 8787
+    }
+  ]
+}

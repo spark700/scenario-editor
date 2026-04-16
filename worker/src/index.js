@@ -9,7 +9,19 @@ const GOOGLE_TOKENINFO = 'https://oauth2.googleapis.com/tokeninfo?id_token=';
 // Кеш перевірених токенів (Worker isolate time)
 const tokenCache = new Map();
 
-async function verifyToken(token, expectedAud) {
+async function verifyToken(token, expectedAud, env) {
+  // Dev-mode: принимаем фиксированный DEV-токен без проверки Google.
+  // Активно ТОЛЬКО когда env.DEV_MODE === 'true' (ставится через .dev.vars локально).
+  if (env?.DEV_MODE === 'true' && token === 'DEV') {
+    return {
+      sub: 'dev-local',
+      email: 'dev@local',
+      email_verified: true,
+      aud: expectedAud,
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    };
+  }
+
   const cached = tokenCache.get(token);
   if (cached && cached.exp * 1000 > Date.now()) return cached;
 
@@ -74,7 +86,7 @@ export default {
 
     let user;
     try {
-      user = await verifyToken(token, env.GOOGLE_CLIENT_ID);
+      user = await verifyToken(token, env.GOOGLE_CLIENT_ID, env);
     } catch (e) {
       return json({ error: 'invalid_token', detail: e.message }, 401, cors);
     }
@@ -145,59 +157,105 @@ export default {
   },
 };
 
-const REFORMAT_SYSTEM = `You are a professional screenplay formatter. You receive raw text and split it into standard screenplay blocks.
+const CLASSIFY_SYSTEM = `You are a screenplay classifier. You receive a JSON array of lines. Return a JSON array of block types — EXACTLY ONE type per input line, same order, same length.
 
-Return a JSON array of blocks. Each block: {"type": "...", "text": "..."}
-
-AVAILABLE TYPES (13):
-- "scene-heading": location+time. INT./EXT./NAT. or Ukrainian ІНТ./НАТ./ЕКСТ. Example: "НАТ. ВЕЧІР. ВУЛИЦІ МІСТА"
-- "cast-list": list of characters PRESENT in a scene, placed RIGHT AFTER scene-heading. Example: "МАРК (22), ЛЕСЯ (22)". Contains multiple names with ages/descriptions separated by commas. This is NOT a character name before dialogue!
-- "action": scene description, what happens visually, b-roll descriptions, stage directions
-- "character": single character name BEFORE their dialogue. UPPERCASE. May include (ЗК), (ПЗ), (V.O.), (O.S.)
-- "dialogue": what a character says (lines after character name)
-- "parenthetical": brief direction in parentheses between character and dialogue: "(тихо)", "(пошепки)"
+TYPES (13):
+- "scene-heading": location+time, starts with INT./EXT./NAT./ІНТ./НАТ./ЕКСТ.
+- "cast-list": multiple named characters with ages/descriptions, right after scene-heading. e.g. "Марк(22), Леся(22)"
+- "action": scene description, b-rolls, stage directions, title-page items (title, author, adaptation credits)
+- "character": SINGLE character name BEFORE their dialogue (may be lowercase in source — still character if followed by dialogue). May have (ЗК), (ПЗ), (V.O.), (O.S.)
+- "dialogue": what a character says, usually on the line after "character"
+- "parenthetical": brief direction in parens between character and dialogue: "(тихо)", "(пошепки)"
 - "transition": CUT TO, FADE, ЗАТЕМНЕННЯ, ПЕРЕХІД, КІНЕЦЬ
-- "shot": camera direction. КРУПНИЙ ПЛАН, ЗАГАЛЬНИЙ ПЛАН, CLOSE UP, WIDE SHOT, POV, ANGLE ON, INSERT
-- "super": on-screen text. Starts with ТИТР:, SUPER:, CHYRON:, TITLE:, CAPTION:
-- "montage": montage sequence header. МОНТАЖ, MONTAGE, СЕРІЯ ПЛАНІВ
-- "intercut": parallel editing. ІНТЕРКАТ, INTERCUT
-- "flashback": time-shift marker. ПОЧАТОК/КІНЕЦЬ ФЛЕШБЕКУ, BEGIN/END FLASHBACK
-- "act-break": structural division. АКТ ПЕРШИЙ, ACT ONE, etc.
+- "shot": camera direction — КРУПНИЙ ПЛАН, ЗАГАЛЬНИЙ, CLOSE UP, WIDE, POV, INSERT
+- "super": on-screen text — starts with ТИТР:, SUPER:, CHYRON:, TITLE:, CAPTION:
+- "montage": МОНТАЖ, MONTAGE, СЕРІЯ ПЛАНІВ
+- "intercut": ІНТЕРКАТ, INTERCUT
+- "flashback": ПОЧАТОК/КІНЕЦЬ ФЛЕШБЕКУ, BEGIN/END FLASHBACK
+- "act-break": АКТ, ACT
 
-CRITICAL RULES:
+KEY RULES:
+1. cast-list vs character: multiple names with ages/commas → cast-list; single name → character
+2. A "character" block is ALWAYS SHORT: 1-3 words max, usually a single name (with optional (ЗК) / (V.O.)). It NEVER contains sentence punctuation (. ! ?). If a line has >3 words or ends with .!? — it is NEVER "character".
+3. If a line has >3 words starting with a capitalized name (e.g. "Леся дуже здивована бачити його.") — this is "action" (a scene description about Леся), NOT character.
+4. If a single line contains name + dialogue together — classify as "dialogue" (do not split; frontend handles cases where input is single-type-per-line)
+5. b-roll/visual descriptions = "action"
+6. IMPORTANT — CHARACTER → DIALOGUE CHAIN: If the immediately preceding block (in context or in this input) was "character", the current line is almost certainly "dialogue" — EVEN IF IT LOOKS LIKE A NAME (e.g. single-word "Марк" after character "ЛЕСЯ" = dialogue, she's calling him, NOT a new character). Only mark as "character" if preceded by non-character/non-dialogue block AND it's ALL CAPS.
+7. DIALOGUE CONTINUES: After a dialogue line, the next line is usually still dialogue (same character) OR action (stage direction) OR parenthetical. It is NOT character unless the text is ALL CAPS name AND ≤3 words.
 
-1. CAST LIST vs CHARACTER: If a line after scene-heading lists MULTIPLE people with ages like "Марк(22), Леся(22)" — this is "cast-list", NOT "character". "character" is ONLY a single name immediately before dialogue.
+CRITICAL EXAMPLE (the name-as-dialogue case):
+Context: [character] ЛЕСЯ
+Input: ["Марк", "Леся посміхається.", "МАРК", "Як справи?"]
+Correct output: ["dialogue", "action", "character", "dialogue"]
+Explanation: "Марк" right after character ЛЕСЯ is her dialogue (she's calling him by name) — NOT a new character. "МАРК" (ALL CAPS) IS a new character header.
 
-2. CHARACTER NAME NORMALIZATION:
-- Lowercase/mixed → UPPERCASE: "Марк" → "МАРК", "Леся" → "ЛЕСЯ"
-- Voice-over: "МАРК(ЗК-закадровий голос)" → "МАРК (ЗК)"
-- Off-screen: "ЛЕСЯ(ПЗ)" → "ЛЕСЯ (ПЗ)"
-- Age in cast-list stays: "МАРК (22), ЛЕСЯ (22)"
-- Always space before parenthesis
+RULE OF THUMB: Two "character" blocks in a row without dialogue between them is ALMOST ALWAYS WRONG. If you're about to output character-character in sequence, reconsider — the second is probably dialogue.
 
-3. After "character", next line is "dialogue" (unless parenthetical in between)
-4. Multi-sentence dialogue = one "dialogue" block
-5. Author's camera/stage directions in parentheses within action = keep as "action"
-6. If a line has character name AND dialogue together, split into "character" + "dialogue"
-7. b-roll descriptions = "action"
-8. Title page elements (title, author name, adaptation credit) = "action"
+OUTPUT: ONLY a JSON array of type strings. Length MUST equal input lines count. No markdown, no explanation.
+Example input: ["ІНТ. КУХНЯ", "Марк готує каву", "марк", "Привіт"]
+Example output: ["scene-heading", "action", "character", "dialogue"]`;
 
-Return ONLY valid JSON array. No markdown, no explanation.`;
+const CLASSIFY_CONTEXT_SYSTEM = `If you receive prior context (system message "PRIOR CONTEXT"), use it to decide types for the user's new lines. DO NOT classify or output types for context — only for the user's current array.`;
 
-function splitTextIntoChunks(text, maxSize) {
-  if (text.length <= maxSize) return [text];
-  const chunks = [];
-  const paragraphs = text.split(/\n\n+/);
-  let current = '';
-  for (const para of paragraphs) {
-    if (current.length + para.length + 2 > maxSize && current.length > 0) {
-      chunks.push(current.trim());
-      current = '';
-    }
-    current += (current ? '\n\n' : '') + para;
+// --- Пул Groq ключів з round-robin та failover ---
+function getApiKeys(env) {
+  const keys = [];
+  if (env.GROK_API_KEYS) {
+    keys.push(...env.GROK_API_KEYS.split(',').map((k) => k.trim()).filter(Boolean));
   }
-  if (current.trim()) chunks.push(current.trim());
-  return chunks.length ? chunks : [text.substring(0, maxSize)];
+  if (env.GROK_API_KEY) keys.push(env.GROK_API_KEY.trim());
+  return [...new Set(keys)];
+}
+
+// Стан пулу ключів — живе в isolate (скидається при cold start). Достатньо для rate-limit розподілу.
+const keyPool = {
+  cursor: 0,
+  failures: new Map(), // key → { retryAt: epoch ms }
+};
+
+function pickAvailableKey(keys) {
+  const now = Date.now();
+  for (let i = 0; i < keys.length; i++) {
+    const idx = (keyPool.cursor + i) % keys.length;
+    const key = keys[idx];
+    const f = keyPool.failures.get(key);
+    if (!f || f.retryAt <= now) {
+      keyPool.cursor = (idx + 1) % keys.length;
+      return { key, idx };
+    }
+  }
+  return null;
+}
+
+function markKeyFailure(key, retryAfterSec) {
+  const retryAt = Date.now() + Math.max(1, retryAfterSec) * 1000;
+  keyPool.failures.set(key, { retryAt });
+}
+
+async function callGroqWithRotation(keys, body) {
+  let lastDetail = null;
+  for (let attempt = 0; attempt < keys.length; attempt++) {
+    const pick = pickAvailableKey(keys);
+    if (!pick) throw new Error('all_keys_throttled:' + (lastDetail || 'no-keys-available'));
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + pick.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 429 || res.status === 503) {
+      // 429 — rate limit (чекаємо до retry-after), 503 — over capacity (короткий cooldown і пробуємо інший ключ)
+      const retryAfter = parseInt(res.headers.get('retry-after') || (res.status === 503 ? '15' : '60'), 10);
+      markKeyFailure(pick.key, retryAfter);
+      lastDetail = (await res.text()).slice(0, 200);
+      continue;
+    }
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error('ai_http_' + res.status + ':' + body.slice(0, 200));
+    }
+    return await res.json();
+  }
+  throw new Error('all_keys_throttled:' + (lastDetail || 'all-rotated'));
 }
 
 async function handleReformat(request, env, cors) {
@@ -206,84 +264,66 @@ async function handleReformat(request, env, cors) {
   if (!token) return json({ error: 'unauthorized' }, 401, cors);
 
   try {
-    await verifyToken(token, env.GOOGLE_CLIENT_ID);
+    await verifyToken(token, env.GOOGLE_CLIENT_ID, env);
   } catch (e) {
     return json({ error: 'invalid_token' }, 401, cors);
   }
 
   const body = await request.json();
-  const text = body?.text;
-  if (!text || typeof text !== 'string') {
-    return json({ error: 'missing text' }, 400, cors);
-  }
-  if (text.length > 50000) {
-    return json({ error: 'text too long (max 50000)' }, 400, cors);
-  }
+  const lines = body?.lines; // масив рядків — AI класифікує, текст зберігається клієнтом
+  // context може бути масивом рядків (старий формат) АБО масивом {type, text} (новий, з типами)
+  const contextRaw = body?.context;
+  if (!Array.isArray(lines) || !lines.length) return json({ error: 'missing lines array' }, 400, cors);
+  if (lines.length > 2000) return json({ error: 'too many lines (max 2000)' }, 400, cors);
 
-  const grokKey = env.GROK_API_KEY;
-  if (!grokKey) return json({ error: 'AI not configured' }, 500, cors);
+  const keys = getApiKeys(env);
+  if (!keys.length) return json({ error: 'AI not configured' }, 500, cors);
+
+  const validTypes = new Set(['scene-heading', 'action', 'character', 'dialogue', 'parenthetical', 'transition', 'cast-list', 'shot', 'super', 'montage', 'intercut', 'flashback', 'act-break']);
 
   try {
-    // Розбиваємо на чанки по ~3000 символів (щоб вкластись в ліміт Groq free tier)
-    const CHUNK_SIZE = 3000;
-    const chunks = splitTextIntoChunks(text, CHUNK_SIZE);
-    let allBlocks = [];
-
-    for (const chunk of chunks) {
-      const aiRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + grokKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            { role: 'system', content: REFORMAT_SYSTEM },
-            { role: 'user', content: chunk },
-          ],
-          temperature: 0.1,
-          max_tokens: 8000,
-        }),
-      });
-
-      if (!aiRes.ok) {
-        const errBody = await aiRes.text();
-        return json({ error: 'ai_error', status: aiRes.status, detail: errBody.substring(0, 300) }, 502, cors);
+    const messages = [{ role: 'system', content: CLASSIFY_SYSTEM }];
+    if (Array.isArray(contextRaw) && contextRaw.length) {
+      messages.push({ role: 'system', content: CLASSIFY_CONTEXT_SYSTEM });
+      // Якщо контекст типізований (масив {type, text}) — форматуємо як "[type] text" для чіткості.
+      let ctxRepr;
+      if (typeof contextRaw[0] === 'object' && contextRaw[0] !== null && 'type' in contextRaw[0]) {
+        ctxRepr = contextRaw.map((b) => `[${b.type}] ${String(b.text || '')}`).join('\n');
+      } else {
+        ctxRepr = JSON.stringify(contextRaw);
       }
-
-      const aiData = await aiRes.json();
-      const content = aiData.choices?.[0]?.message?.content || '';
-
-      let blocks;
-      try {
-        const jsonStr = content.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
-        blocks = JSON.parse(jsonStr);
-      } catch (e) {
-        return json({ error: 'ai_parse_error', raw: content.substring(0, 500) }, 502, cors);
-      }
-
-      if (!Array.isArray(blocks)) {
-        return json({ error: 'ai_bad_format', raw: content.substring(0, 500) }, 502, cors);
-      }
-
-      allBlocks = allBlocks.concat(blocks);
-
-      // Пауза між чанками щоб не перевищити rate limit
-      if (chunks.length > 1) await new Promise(r => setTimeout(r, 1500));
+      messages.push({ role: 'system', content: 'PRIOR CONTEXT (already classified, reference only, do not re-classify):\n' + ctxRepr });
     }
-
-    const blocks = allBlocks;
-    const validTypes = new Set(['scene-heading', 'action', 'character', 'dialogue', 'parenthetical', 'transition', 'cast-list', 'shot', 'super', 'montage', 'intercut', 'flashback', 'act-break']);
-    const cleaned = blocks
-      .filter(b => b && typeof b.text === 'string' && b.text.trim())
-      .map(b => ({
-        type: validTypes.has(b.type) ? b.type : 'action',
-        text: b.text.trim(),
-      }));
-
-    return json({ blocks: cleaned }, 200, cors);
+    messages.push({ role: 'user', content: JSON.stringify(lines) });
+    const aiData = await callGroqWithRotation(keys, {
+      model: 'llama-3.3-70b-versatile',
+      messages,
+      temperature: 0.1,
+      max_tokens: 2000, // типи компактні, не треба 8k
+    });
+    const content = aiData.choices?.[0]?.message?.content || '';
+    let types;
+    try {
+      const jsonStr = content.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
+      types = JSON.parse(jsonStr);
+    } catch (e) {
+      return json({ error: 'ai_parse_error', raw: content.substring(0, 500) }, 502, cors);
+    }
+    if (!Array.isArray(types)) {
+      return json({ error: 'ai_bad_format', raw: content.substring(0, 500) }, 502, cors);
+    }
+    // Нормалізуємо: всі елементи — рядки з дозволеного набору, довжина = lines.length
+    const normalized = [];
+    for (let i = 0; i < lines.length; i++) {
+      const t = types[i];
+      normalized.push(validTypes.has(t) ? t : 'action');
+    }
+    return json({ types: normalized, keys: keys.length }, 200, cors);
   } catch (e) {
-    return json({ error: 'ai_fetch_error', detail: e.message }, 502, cors);
+    const msg = String(e.message || e);
+    if (msg.startsWith('all_keys_throttled')) {
+      return json({ error: 'all_keys_throttled', detail: msg }, 429, cors);
+    }
+    return json({ error: 'ai_error', detail: msg }, 502, cors);
   }
 }
