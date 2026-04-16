@@ -100,6 +100,44 @@
     align-self: center;
   }
 
+  /* Файл-меню */
+  .file-menu-wrap { position: relative; align-self: center; }
+  .file-menu-btn {
+    background: #3a3a3a !important; border: 1px solid #555 !important;
+    color: var(--text) !important; padding: 7px 12px !important;
+    border-radius: 5px !important; cursor: pointer; font-size: 12px !important;
+  }
+  .file-menu-btn:hover { background: #555 !important; }
+  .file-menu-btn::after { content: " ▾"; color: #888; }
+  .file-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    min-width: 220px;
+    z-index: 200;
+    overflow: hidden;
+  }
+  .file-menu.open { display: block; }
+  .file-menu .fm-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 16px;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    border-bottom: 1px solid #2a2a2a;
+  }
+  .file-menu .fm-item:last-child { border-bottom: none; }
+  .file-menu .fm-item:hover { background: rgba(255,255,255,.06); }
+  .file-menu .fm-item .hotkey { font-size: 10px; color: var(--text-muted); }
+  .file-menu .fm-divider { height: 1px; background: #333; margin: 2px 0; }
+
   /* Система view */
   body[data-view="projects"] .floating-toolbar,
   body[data-view="projects"] .editor-wrap,
@@ -598,16 +636,31 @@
   <button class="tb-back" id="projectsToggle" title="Назад до проектів">←</button>
   <span class="tb-project-name" id="tbProjectName"></span>
   <div class="tb-sep"></div>
+  <div class="file-menu-wrap">
+    <button class="file-menu-btn" id="fileMenuBtn">Файл</button>
+    <div class="file-menu" id="fileMenu">
+      <div class="fm-item" data-action="new">Новий сценарій</div>
+      <div class="fm-item" data-action="projects">Мої проекти</div>
+      <div class="fm-divider"></div>
+      <div class="fm-item" data-action="save">Зберегти<span class="hotkey">⌘S</span></div>
+      <div class="fm-item" data-action="rename">Перейменувати</div>
+      <div class="fm-divider"></div>
+      <div class="fm-item" data-action="pdf">Експорт PDF</div>
+      <div class="fm-item" data-action="docx">Експорт DOCX</div>
+      <div class="fm-divider"></div>
+      <div class="fm-item" data-action="import">Імпорт проектів (JSON)</div>
+      <div class="fm-item" data-action="export">Експорт усіх (JSON)</div>
+      <div class="fm-divider"></div>
+      <div class="fm-item" data-action="reformat">Розбити на абзаци</div>
+    </div>
+  </div>
+  <div class="tb-sep"></div>
   <button data-fmt="scene-heading" title="⌘1">МІСЦЕ/ЧАС</button>
   <button data-fmt="action" title="⌘2">Опис</button>
   <button data-fmt="character" title="⌘3">ГЕРОЙ</button>
   <button data-fmt="dialogue" title="⌘4">Репліка</button>
   <button data-fmt="parenthetical" title="⌘5">(ремарка)</button>
   <button data-fmt="transition" title="⌘6">ПЕРЕХІД</button>
-  <div class="tb-sep"></div>
-  <button id="btnReformat" title="Розбити документ на абзаци">Розбити</button>
-  <button onclick="exportPDF()" title="Експорт PDF">PDF</button>
-  <button onclick="exportDOCX()" title="Експорт Word">DOCX</button>
 </div>
 
 <div class="editor-wrap">
@@ -1826,20 +1879,6 @@ function reformatEditorContent() {
   updateBlockChip();
 }
 
-document.getElementById('btnReformat').addEventListener('click', async () => {
-  const choice = await dlgChoice(
-    'Як розбити поточний документ на абзаци?',
-    [
-      { label: 'Скасувати', value: 'cancel' },
-      { label: 'Авто (за рядками)', value: 'auto' },
-      { label: 'AI (Grok)', value: 'ai', variant: 'primary' },
-    ],
-    { title: 'Розбити на абзаци' }
-  );
-  if (choice === 'auto') reformatEditorContent();
-  else if (choice === 'ai') aiReformatContent();
-});
-
 async function aiReformatContent() {
   if (!currentUser?.token) { await dlgAlert('Увійдіть щоб використовувати AI', 'Помилка'); return; }
   const lines = [];
@@ -2050,6 +2089,77 @@ document.getElementById('sidePanel').addEventListener('mousedown', (e) => {
   editor.focus();
   save();
   updateHint();
+});
+
+// --- Файл-меню ---
+const fileMenuBtn = document.getElementById('fileMenuBtn');
+const fileMenu = document.getElementById('fileMenu');
+
+fileMenuBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  fileMenu.classList.toggle('open');
+});
+document.addEventListener('click', (e) => {
+  if (!fileMenu.contains(e.target) && e.target !== fileMenuBtn) fileMenu.classList.remove('open');
+});
+
+fileMenu.addEventListener('click', async (e) => {
+  const item = e.target.closest('.fm-item');
+  if (!item) return;
+  fileMenu.classList.remove('open');
+  const action = item.dataset.action;
+
+  if (action === 'new') {
+    const name = await dlgPrompt('Назва нового проекту:', 'Новий сценарій', { title: 'Новий сценарій', okLabel: 'Створити' });
+    if (name && name.trim()) { createProject(name.trim()); setView('editor'); }
+  }
+  else if (action === 'projects') { save(); setView('projects'); }
+  else if (action === 'save') { save(); if (currentUser && activeId) flushImmediate(activeId); }
+  else if (action === 'rename') {
+    if (!activeId || !projects[activeId]) return;
+    const nn = await dlgPrompt('Нова назва:', projects[activeId].name, { title: 'Перейменувати' });
+    if (nn && nn.trim()) {
+      projects[activeId].name = nn.trim();
+      projects[activeId].updated = Date.now();
+      saveProjects(projects);
+      scheduleCloudPush(activeId);
+      updateToggleLabel();
+    }
+  }
+  else if (action === 'pdf') { exportPDF(); }
+  else if (action === 'docx') { exportDOCX(); }
+  else if (action === 'import') { document.getElementById('importFile').click(); }
+  else if (action === 'export') {
+    save();
+    const data = JSON.stringify({ version: 1, projects, activeId }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'scenario-projects-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click(); URL.revokeObjectURL(url);
+  }
+  else if (action === 'reformat') {
+    const choice = await dlgChoice(
+      'Як розбити поточний документ на абзаци?',
+      [
+        { label: 'Скасувати', value: 'cancel' },
+        { label: 'Авто (за рядками)', value: 'auto' },
+        { label: 'AI (Groq)', value: 'ai', variant: 'primary' },
+      ],
+      { title: 'Розбити на абзаци' }
+    );
+    if (choice === 'auto') reformatEditorContent();
+    else if (choice === 'ai') aiReformatContent();
+  }
+});
+
+// Cmd+S / Ctrl+S — зберегти
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+    e.preventDefault();
+    save();
+    if (currentUser && activeId) flushImmediate(activeId);
+  }
 });
 
 // mousedown + preventDefault — щоб клік кнопки не забирав фокус з редактора
