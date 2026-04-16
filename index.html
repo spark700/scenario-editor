@@ -557,6 +557,7 @@
   .editor .scene-heading { text-transform: uppercase; font-weight: bold; margin: 24px 0 12px; }
   .editor .action { margin: 12px 0; }
   .editor .character { text-transform: uppercase; font-weight: bold; margin: 20px 0 0 40%; }
+  .editor .character .ann { font-weight: normal; color: #999; text-transform: none; }
   .editor .dialogue { margin: 4px 20% 12px 20%; }
   .editor .parenthetical { font-style: italic; margin: 2px 0 2px 30%; color: #666; }
   .editor .transition { text-transform: uppercase; font-weight: bold; text-align: right; margin: 16px 0; color: #9b4040; }
@@ -2014,12 +2015,16 @@ function normalizeBlock(block) {
   }
 
   if (type === 'character') {
-    // Uppercase ім'я (CSS робить візуально, але зберігаємо і в тексті)
     const upper = text.toUpperCase();
     if (text !== upper) { text = upper; changed = true; }
-    // Пробіл перед дужкою: МАРК(ЗК) → МАРК (ЗК)
     const fixed = text.replace(/([А-ЯЁІЇЄҐA-Z])(\()/, '$1 $2');
     if (fixed !== text) { text = fixed; changed = true; }
+    // Обгортаємо анотацію в span для стилізації
+    const annMatch = text.match(/^(.+?)(\s*\([А-ЯЁІЇЄҐA-ZА-яa-z.]+\)\s*)$/);
+    if (annMatch) {
+      block.innerHTML = annMatch[1] + '<span class="ann">' + annMatch[2].trim() + '</span>';
+      return; // innerHTML вже встановлено
+    }
   }
 
   if (type === 'scene-heading') {
